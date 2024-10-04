@@ -1,0 +1,1617 @@
+---
+title: "Longitudinal COVID Risk/Reward Behaviors & Mental Health Modeling"
+subtitle: "This project aims to examine longitudinal changes in risk- and reward-related behaviors and decision-making among a general community sample over the first year following the initial COVID-19 lock-down in the United States, which began in March 2020. The focus is to understand how these behaviors evolved during the pandemic and to identify the factors influencing these trajectories. This study was conducted by the <a href='https://www.mcleanhospital.org/profile/poornima-kumar'>Computational Psychopathology Laboratory</a> at McLean Hospital & Harvard Medical School."
+format:
+  lumo-html: 
+    logo: "Lab Logo_Transparent.svg" # Optional. Path to a logo displayed above the title
+    github-repo: "https://www.github.com/adrian-a-medina/COVID-MultilevelModeling"
+    primary-color: "#d62993"
+    self-contained: true
+    is-particlejs-enabled: true # Optional: display interactive particles in the document header
+author: Adrian Medina
+date: last-modified
+---
+
+## Overview
+
+[**Study Design**]{.underline}**:\
+**The study spans from May 2020 to February 2021, encompassing seven sessions including the baseline. Follow-up assessments were conducted at two weeks, one month, six weeks, two months, ten weeks, and three months post-baseline. This design allows for detailed tracking of changes over a crucial period of adjustment to pandemic-related disruptions.
+
+[**Data Collection**]{.underline}**:\
+**Data were collected on a variety of domains, including:
+
+-   ***Risky Behaviors***: As characterized by the Centers for Disease Control and Prevention (CDC).
+-   ***Risk/Reward Appraisals***: Assessment of individuals’ perceptions and evaluations of risky situations versus potential gains
+-   ***Clinical Measures***: Focused primarily on mental health, with a few variables related to physical health.
+-   ***Coping & Support Measures***: Insights into how individuals cope with stress and their available support systems.
+-   ***Psychometric Measures***: Standardized tests to measure psychological variables, offering a window into the psychological state of participants.
+
+[**Analytic Approach**]{.underline}**:\
+**The primary analytic strategy involves using multilevel modeling to:
+
+-   **Determine the best-fitting models** for describing the trajectories of risk/reward behavior variables.
+-   **Incorporate clinical, psychometric, coping, and support measures** to enrich our understanding of the factors influencing risk and reward inclinations or aversions during this unprecedented period.
+
+[**Goals**]{.underline}**:\
+**The primary analytic strategy involves using multilevel modeling to:
+
+-   **Identify key patterns and changes** in risk-taking and reward-seeking behaviors across the studied time frame.
+-   **Explore the impact of psychological and social factors** on these behaviors to better understand the mental health implications of the pandemic.
+-   **Develop predictive insights** that can inform future public health strategies and interventions in similar crises.
+
+## Data Frame Initialization
+
+Set up the R environment by configuring the CRAN repository, installing essential packages, and setting base paths.
+
+```{r Package Installation, warning=F, message=F}
+#| code-fold: false
+# Set CRAN repository for consistent package installation
+options(repos = c(CRAN = "http://cran.rstudio.com/"))
+
+if (!require(pacman)) install.packages("pacman")
+library(pacman) # <1>
+
+# Use p_load function to install (if necessary) and load packages
+p_load(psych, ggplot2, lme4, lmerTest, nlme, dplyr, performance, interactions, sampling, tidyr,
+       tidyverse, kableExtra, broom.mixed, gridExtra, sjPlot, ggridges, PupillometryR, 
+       patchwork)
+
+# Define base path for streamlined access/replication
+base_path <- "~/Dropbox (Partners HealthCare)/Stress_COVID_Decision_making/Analyses/Risk_Behavior/MultilevelModeling"
+survey_path <- "~/Dropbox (Partners HealthCare)/Stress_COVID_Decision_making/Data/scored_survey_data/final_data"
+
+```
+
+1.  this package provides efficient package management if using multiple packages within the same file!
+
+The source dataset is loaded and time values are adjusted from 1-7 to 0-6. Initialize unified columns for behavior, risk, and reward variables.
+
+```{r Loading Source Dataset & Data Frame Preparation, message=FALSE, warning=FALSE}
+# Set working directory
+setwd(base_path)
+
+# Read in source dataset
+covid_long <- read.csv("covid_long.csv")
+
+# Recode time from values of 1-7 to 0-6
+covid_long$time <- covid_long$Index1 - 1
+
+# Define the behavior variable names
+beh_variable_names <- c("L1_mail", "HM26_plane", "L2_takeout", "L4_tennis", "LM7_walk_others", 
+                    "LM8_golf", "MOD16_bbq", "HM24_eat_rest_in", "LM9_stay_hotel",
+                    "LM11_library", "LM12_eat_rest_out", "LM14_playground", "H33_going_movies",
+                    "L5_camping", "MOD17_beach", "MOD18_mall", "LM6_grocery", 
+                    "MOD20_work_office", "HM28_play_football", "MOD21_pool", "H37_bar", 
+                    "MOD22_visit_relatives", "LM13_walk_downtown", "HM23_hair_salon", 
+                    "HM25_wedding", "L3_pump_gas", "HM27_play_basketball", 
+                    "MOD15_dinner_friend", "H36_attend_religious", "HM29_shake_hands", 
+                    "H30_buffet", "H31_gym", "H32_amusement_park", "LM10_doc_office", 
+                    "H34_concert", "H35_going_sports", "MOD19_kids_school")
+
+# Create a new '_unified' column (to organize behavior data in non-iterative manner) for each behavior variable
+for (var_name in beh_variable_names) {
+  covid_long[paste0(var_name, "_unified")] <- NA
+}
+
+# Define the base risk variable names
+risk_variable_names <- c("L1Y_mail_risk", "HM26Y_plane_risk", "L2Y_takeout_risk", 
+                         "L4Y_tennis_risk", "LM7Y_walk_others_risk", "LM8Y_golf_risk", 
+                         "MOD16Y_bbq_risk", "HM24Y_eat_rest_in_risk", "LM9Y_stay_hotel_risk", 
+                         "LM11Y_library_risk", "LM12Y_eat_rest_out_risk", 
+                         "LM14Y_playground_risk", "H33Y_going_movies_risk", "L5Y_camping_risk",
+                         "MOD17Y_beach_risk", "MOD18Y_mall_risk", "LM6Y_grocery_risk", 
+                         "MOD20Y_work_office_risk", "HM28Y_play_football_risk", 
+                         "MOD21Y_pool_risk", "H37Y_bar_risk", "MOD22Y_visit_relatives_risk", 
+                         "LM13Y_walk_downtown_risk", "HM23Y_hair_salon_risk", 
+                         "HM25Y_wedding_risk", "L3Y_pump_gas_risk", 
+                         "HM27Y_play_basketball_risk", "MOD15Y_dinner_friend_risk", 
+                         "H36Y_attend_religious_risk", "HM29Y_shake_hands_risk", 
+                         "H30Y_buffet_risk", "H31Y_gym_risk", "H32Y_amusement_park_risk", 
+                         "LM10Y_doc_office_risk", "H34Y_concert_risk", "H35Y_going_sports_risk"
+                         , "MOD19Y_kids_school_risk", "L1N_mail_risk", "HM26N_plane_risk", 
+                         "L2N_takeout_risk", "L4N_tennis_risk", "LM7N_walk_others_risk", 
+                         "LM8N_golf_risk", "MOD16N_bbq_risk", "HM24N_eat_rest_in_risk", 
+                         "LM9N_stay_hotel_risk", "LM11N_library_risk", 
+                         "LM12N_eat_rest_out_risk", "LM14N_playground_risk", 
+                         "H33N_going_movies_risk", "L5N_camping_risk", "MOD17N_beach_risk", 
+                         "MOD18N_mall_risk", "LM6N_grocery_risk", "MOD20N_work_office_risk", 
+                         "HM28N_play_football_risk", "MOD21N_pool_risk", "H37N_bar_risk", 
+                         "MOD22N_visit_relatives_risk", "LM13N_walk_downtown_risk", 
+                         "HM23N_hair_salon_risk", "HM25N_wedding_risk", "L3N_pump_gas_risk", 
+                         "HM27N_play_basketball_risk", "MOD15N_dinner_friend_risk", 
+                         "H36N_attend_religious_risk", "HM29N_shake_hands_risk", 
+                         "H30N_buffet_risk", "H31N_gym_risk", "H32N_amusement_park_risk", 
+                         "LM10N_doc_office_risk", "H34N_concert_risk", "H35N_going_sports_risk"
+                         , "MOD19N_kids_school_risk")
+
+# Create a new '_unified' column (to organize risk data in non-iterative manner) for each behavior variable
+for (var_name in risk_variable_names) {
+  covid_long[paste0(var_name, "_unified")] <- NA
+}
+
+# Define the base reward variable names
+rew_variable_names <- c("L1Y_mail_rew", "HM26Y_plane_rew", "L2Y_takeout_rew", "L4Y_tennis_rew",
+                        "LM7Y_walk_others_rew", "LM8Y_golf_rew", "MOD16Y_bbq_rew", 
+                        "HM24Y_eat_rest_in_rew",  "LM9Y_stay_hotel_rew", "LM11Y_library_rew", 
+                        "LM12Y_eat_rest_out_rew", "LM14Y_playground_rew", 
+                        "H33Y_going_movies_rew", "L5Y_camping_rew", "MOD17Y_beach_rew", 
+                        "MOD18Y_mall_rew", "LM6Y_grocery_rew", "MOD20Y_work_office_rew", 
+                        "HM28Y_play_football_rew", "MOD21Y_pool_rew", "H37Y_bar_rew", 
+                        "MOD22Y_visit_relatives_rew", "LM13Y_walk_downtown_rew", 
+                        "HM23Y_hair_salon_rew", "HM25Y_wedding_rew", "L3Y_pump_gas_rew", 
+                        "HM27Y_play_basketball_rew", "MOD15Y_dinner_friend_rew", 
+                        "H36Y_attend_religious_rew", "HM29Y_shake_hands_rew", "H30Y_buffet_rew"
+                        , "H31Y_gym_rew", "H32Y_amusement_park_rew", "LM10Y_doc_office_rew", 
+                        "H34Y_concert_rew", "H35Y_going_sports_rew", "MOD19Y_kids_school_rew", 
+                        "L1N_mail_rew", "HM26N_plane_rew", "L2N_takeout_rew", "L4N_tennis_rew",
+                        "LM7N_walk_others_rew", "LM8N_golf_rew", "MOD16N_bbq_rew", 
+                        "HM24N_eat_rest_in_rew", "LM9N_stay_hotel_rew", "LM11N_library_rew", 
+                        "LM12N_eat_rest_out_rew", "LM14N_playground_rew", 
+                        "H33N_going_movies_rew", "L5N_camping_rew", "MOD17N_beach_rew", 
+                        "MOD18N_mall_rew", "LM6N_grocery_rew", "MOD20N_work_office_rew", 
+                        "HM28N_play_football_rew", "MOD21N_pool_rew", "H37N_bar_rew", 
+                        "MOD22N_visit_relatives_rew", "LM13N_walk_downtown_rew", 
+                        "HM23N_hair_salon_rew", "HM25N_wedding_rew", "L3N_pump_gas_rew", 
+                        "HM27N_play_basketball_rew", "MOD15N_dinner_friend_rew", 
+                        "H36N_attend_religious_rew", "HM29N_shake_hands_rew", "H30N_buffet_rew"
+                        , "H31N_gym_rew", "H32N_amusement_park_rew", "LM10N_doc_office_rew", 
+                        "H34N_concert_rew", "H35N_going_sports_rew", "MOD19N_kids_school_rew")
+
+# Create a new '_unified' column (to organize reward data in non-iterative manner) for each behavior variable
+for (var_name in rew_variable_names) {
+  covid_long[paste0(var_name, "_unified")] <- NA
+}
+
+```
+
+The code below is meant to search through the source dataset 'covid_long' to determine whether or not each of the behavior, risk, and reward variables contain their longitudinal counterparts (based on the consistent naming scheme already included in the source dataset). This was done to ensure all variables were named correctly, thus ensuring they be included in modeling. **The output for each check should be 'character(0)'**.
+
+```{r Variable Nomenclature Inspection, message=FALSE, warning=FALSE}
+# Define the naming scheme for follow-up sessions
+follow_up_suffixes <- c("", "_two_week", "_monthly", "_six_week", "_sec_monthly", "_ten_week", "_third_monthly")
+
+# Create a list of all expected columns based on the naming scheme
+beh_expected_columns <- unlist(lapply(beh_variable_names, function(var) {
+  paste0(var, follow_up_suffixes)
+}))
+
+# Check which expected behavior columns are missing in the data frame
+beh_missing_columns <- setdiff(beh_expected_columns, names(covid_long))
+
+# Output the missing behavior columns (if any)
+print(beh_missing_columns)
+
+# Create a list of all expected risk columns based on the naming scheme
+risk_expected_columns <- unlist(lapply(risk_variable_names, function(var) {
+  paste0(var, follow_up_suffixes)
+}))
+
+# Check which expected risk columns are missing in the data frame
+risk_missing_columns <- setdiff(risk_expected_columns, names(covid_long))
+
+# Output the missing risk columns (if any)
+print(risk_missing_columns)
+
+# Create a list of all expected reward columns based on the naming scheme
+rew_expected_columns <- unlist(lapply(rew_variable_names, function(var) {
+  paste0(var, follow_up_suffixes)
+}))
+
+# Check which expected reward columns are missing in the data frame
+rew_missing_columns <- setdiff(rew_expected_columns, names(covid_long))
+
+# Output the missing reward columns (if any)
+print(rew_missing_columns)
+
+```
+
+Filter out subjects with completely missing data across all unified variables, recode 'NA' values to '2' in behavior variables, and populate unified columns according to specific time points, ensuring each column accurately reflects the data for each session.
+
+```{r Filtering Empty Subjects & Recoding Remaining Empty Cells, results='hide', message=FALSE, warning=FALSE}
+# Generate unified variable names
+beh_unified_vars <- paste0(beh_variable_names, "_unified")
+risk_unified_vars <- paste0(risk_variable_names, "_unified")
+rew_unified_vars <- paste0(rew_variable_names, "_unified")
+
+# Combine all unified variable names
+all_unified_vars <- c(beh_unified_vars, risk_unified_vars, rew_unified_vars)
+
+# Combine all expected columns
+all_expected_columns <- c(beh_expected_columns, risk_expected_columns, rew_expected_columns)
+
+# Create the subset dataframe
+covid_long_analytic <- covid_long %>%
+  select(record_id, time, baseline_date_complete, all_of(c(all_expected_columns, all_unified_vars)))
+
+# Create complete expected columns per variable type
+beh_all_columns <- c(beh_expected_columns, beh_unified_vars)
+risk_all_columns <- c(risk_expected_columns, risk_unified_vars)
+rew_all_columns <- c(rew_expected_columns, rew_unified_vars)
+all_columns <- c(all_expected_columns, all_unified_vars)
+
+# Filter out rows where all entries in 'all_columns' are NA
+covid_long_filtered <- covid_long_analytic %>%
+  filter(rowSums(!is.na(select(., all_of(all_columns)))) > 0)  # Tested using different filter variables, all of which yielded the same amount of subjects + iterations, so kept the most comprehensive option
+
+# Count NA values in each column of the filtered data frame
+na_counts <- colSums(is.na(covid_long_filtered))
+
+# Recode NA values to 2 in specified behavior columns using explicit dplyr namespace
+covid_long_filtered <- dplyr::mutate(
+  covid_long_filtered,
+  dplyr::across(dplyr::all_of(beh_expected_columns), ~ dplyr::if_else(is.na(.), 2, .))
+)
+
+# Double-check if there are still NA values in these columns
+sum_na <- invisible(sapply(covid_long_filtered[beh_expected_columns], function(x) sum(is.na(x))))
+print(sum_na)  # This will show the count of NA values per column after the replacement
+
+```
+
+```{r Analytic Variable Coalescence, message=FALSE, warning=FALSE}
+#| code-fold: false  
+# Explicitly populate the unified behavior columns based on 'time' value
+for (var in beh_variable_names) {
+  for (i in 0:6) {
+    covid_long_filtered <- dplyr::mutate(
+      covid_long_filtered,
+      !!paste0(var, "_unified") := dplyr::if_else(
+        time == i,
+        covid_long_filtered[[paste0(var, follow_up_suffixes[i + 1])]],
+        covid_long_filtered[[paste0(var, "_unified")]],
+        missing = NA
+      )
+    )
+  }
+}
+
+# Explicitly populate the unified risk columns based on 'time' value
+for (var in risk_variable_names) {
+  for (i in 0:6) {
+    covid_long_filtered <- dplyr::mutate(
+      covid_long_filtered,
+      !!paste0(var, "_unified") := dplyr::if_else(
+        time == i, 
+        covid_long_filtered[[paste0(var, follow_up_suffixes[i + 1])]],
+        covid_long_filtered[[paste0(var, "_unified")]],
+        missing = NA
+      )
+    )
+  }
+}
+
+# Explicitly populate the unified reward columns based on 'time' value
+for (var in rew_variable_names) {
+  for (i in 0:6) {
+    covid_long_filtered <- dplyr::mutate(
+      covid_long_filtered,
+      !!paste0(var, "_unified") := dplyr::if_else(
+        time == i,
+        covid_long_filtered[[paste0(var, follow_up_suffixes[i + 1])]],
+        covid_long_filtered[[paste0(var, "_unified")]],
+        missing = NA
+      )
+    )
+  }
+}
+
+```
+
+## Behavior Data: Wrangling & Transformations
+
+Analyzes behavioral responses by filtering subjects with uniform responses and calculating counts of affirmative and negative responses. It summarizes these counts to derive total response metrics for each subject and time point, highlighting behavioral patterns.
+
+```{r Behavior Response Calculation, message=FALSE, warning=FALSE}
+# Create the behavior subset data frame
+covid_behavior_filtered <- covid_long_filtered %>%
+  select(record_id, time, baseline_date_complete, all_of(c(beh_unified_vars)))
+
+# Filter out empty rows of subject data (e.g., '2' in all behavioral variables)
+covid_behavior_filtered <- covid_behavior_filtered %>%
+  # Add a helper column that checks if all values in specified columns are '2'
+  mutate(all_twos = rowSums(across(all_of(beh_unified_vars)) == 2) == length(beh_unified_vars)) %>%
+  # Filter out rows where the helper column is TRUE
+  filter(!all_twos) %>%
+  # Optionally remove the helper column if it's no longer needed
+  select(-all_twos)
+
+# Count only '0' values (yes) for each row across selected variables, excluding 'record_id' and 'time'
+covid_behavior_filtered$yes_counts <- rowSums(covid_behavior_filtered[, -c(1, 2)] == 0, na.rm = TRUE)
+
+# Count only '1' values (no) for each row across selected variables, excluding 'record_id', 'time', and 'yes_counts'
+covid_behavior_filtered$no_counts <- rowSums(covid_behavior_filtered[, -c(1, 2, 40)] == 1, na.rm = TRUE)
+
+# Sum the 'yes_counts' and 'no_counts' to get the total response counts
+covid_behavior_filtered$response_counts <- covid_behavior_filtered$yes_counts + covid_behavior_filtered$no_counts
+
+```
+
+## Risk Data: Wrangling & Transformations
+
+Processes risk-related data by excluding subjects with entirely missing risk variables. It calculates non-missing risk sums and counts to compute average risk scores, both total and adjusted for actual data availability, to assess risk profiles longitudinally.
+
+```{r Longitudinal Risk Calculation, message=FALSE, warning=FALSE}
+# Create the risk subset data frame
+covid_risk_filtered <- covid_long_filtered %>%
+  select(record_id, time, baseline_date_complete, all_of(c(risk_unified_vars)))
+
+# Filter out empty rows of subject data (e.g., 'NA' in all risk variables)
+covid_risk_filtered <- covid_risk_filtered %>%
+  # Add a helper column that checks if all values in specified columns are NA
+  mutate(all_na = rowSums(is.na(across(all_of(risk_unified_vars)))) == length(risk_unified_vars)) %>%
+  # Filter out rows where the helper column is TRUE
+  filter(!all_na) %>%
+  # Optionally remove the helper column if it's no longer needed
+  select(-all_na)
+
+# Create 'sum_risks' and 'num_risks' columns by summing all risk-related columns for each row, ignoring NA values
+covid_risk_filtered$sum_risks <- rowSums(covid_risk_filtered[risk_unified_vars], na.rm = TRUE)
+covid_risk_filtered$num_risks <- rowSums(!is.na(covid_risk_filtered[risk_unified_vars]))
+
+# Create 'avg_risk' column for risk variables by dividing 'sum_risks' by 'num_risks'
+covid_risk_filtered$avg_risk <- covid_risk_filtered$sum_risks / covid_risk_filtered$num_risks
+
+```
+
+## Reward Data: Wrangling & Transformations
+
+Processes reward-related data by isolating subjects with complete data and computing sums and counts of non-missing reward entries. It derives average reward scores, both overall and adjusted based on data presence, to analyze reward dynamics across time points. The section concludes by merging the refined reward data with previously processed behavioral and risk data to form a comprehensive dataset for further analysis.
+
+```{r Longitudinal Reward Calculation, message=FALSE, warning=FALSE}
+# Create the reward subset data frame
+covid_rew_filtered <- covid_long_filtered %>%
+  select(record_id, time, baseline_date_complete, all_of(c(rew_unified_vars)))
+
+# Filter out empty rows of subject data (e.g., 'NA' in all reward variables)
+covid_rew_filtered <- covid_rew_filtered %>%
+  # Add a helper column that checks if all values in specified columns are NA
+  mutate(all_na = rowSums(is.na(across(all_of(rew_unified_vars)))) == length(rew_unified_vars)) %>%
+  # Filter out rows where the helper column is TRUE
+  filter(!all_na) %>%
+  # Optionally remove the helper column if it's no longer needed
+  select(-all_na)
+
+# Create 'sum_rew' and 'num_rew' columns by summing all reward-related columns for each row, ignoring NA values
+covid_rew_filtered$sum_rew <- rowSums(covid_rew_filtered[rew_unified_vars], na.rm = TRUE)
+covid_rew_filtered$num_rew <- rowSums(!is.na(covid_rew_filtered[rew_unified_vars]))
+
+# Create 'avg_rew_adj' column for reward variables by dividing 'sum_rew' by 'num_rew'
+covid_rew_filtered$avg_rew <- covid_rew_filtered$sum_rew / covid_rew_filtered$num_rew
+
+# Merge covid_behavior_filtered with covid_risk_filtered
+covid_long_intermediate <- dplyr::left_join(covid_behavior_filtered, covid_risk_filtered, by = c("record_id", "time"))
+
+# Merge the intermediate result with covid_rew_filtered
+covid_long_final <- dplyr::left_join(covid_long_intermediate, covid_rew_filtered, by = c("record_id", "time"))
+
+```
+
+## Risk & Reward Data: Stratification & Categorization
+
+Categorizes risk and reward variables into 'Yes' and 'No' groups and then further stratifies them into 'Low', 'Moderate', and 'High' risk categories based on predefined item numbers. Computes the sum and average scores for each group by risk category, enabling detailed analysis of responses within the stratified groups.
+
+```{r Stratifying Variables, message=FALSE, warning=FALSE}
+# Split the risk variables into those containing 'Y' and those containing 'N'
+risk_Y_unified_vars <- risk_unified_vars[grep("\\dY_", risk_unified_vars)]
+risk_N_unified_vars <- risk_unified_vars[grep("\\dN_", risk_unified_vars)]
+
+# Split the reward variables into those containing 'Y' and those containing 'N'
+rew_Y_unified_vars <- rew_unified_vars[grep("\\dY_", rew_unified_vars)]
+rew_N_unified_vars <- rew_unified_vars[grep("\\dN_", rew_unified_vars)]
+
+# Calculating sum scores for 'yes' and 'no' responses for risk variables
+covid_long_final <- covid_long_final %>%
+  mutate(
+    sum_risk_Y = rowSums(select(., all_of(risk_Y_unified_vars)), na.rm = TRUE),
+    sum_risk_N = rowSums(select(., all_of(risk_N_unified_vars)), na.rm = TRUE),
+    num_risk_Y = rowSums(!is.na(select(., all_of(risk_Y_unified_vars)))),
+    num_risk_N = rowSums(!is.na(select(., all_of(risk_N_unified_vars)))),
+    avg_risk_Y = sum_risk_Y / num_risk_Y,
+    avg_risk_N = sum_risk_N / num_risk_N
+  )
+
+# Calculating sum scores for 'yes' and 'no' responses for reward variables
+covid_long_final <- covid_long_final %>%
+  mutate(
+    sum_rew_Y = rowSums(select(., all_of(rew_Y_unified_vars)), na.rm = TRUE),
+    sum_rew_N = rowSums(select(., all_of(rew_N_unified_vars)), na.rm = TRUE),
+    num_rew_Y = rowSums(!is.na(select(., all_of(rew_Y_unified_vars)))),
+    num_rew_N = rowSums(!is.na(select(., all_of(rew_N_unified_vars)))),
+    avg_rew_Y = sum_rew_Y / num_rew_Y,
+    avg_rew_N = sum_rew_N / num_rew_N
+  )
+
+# Extract item numbers from variable names
+item_numbers <- as.numeric(gsub("\\D", "", all_unified_vars))
+
+# Classify each variable into a risk category based on item number
+risk_categories <- ifelse(item_numbers %in% 1:8, "Low",
+                          ifelse(item_numbers %in% 9:22, "Moderate", "High"))
+
+# Combine variable names with their categories
+behavior_categories <- data.frame(variable = all_unified_vars, category = risk_categories)
+
+# Calculating sums and averages for risk categories, 'Yes' and 'No' variables
+low_risk_vars <- behavior_categories$variable[behavior_categories$category == "Low"]
+moderate_risk_vars <- behavior_categories$variable[behavior_categories$category == "Moderate"]
+high_risk_vars <- behavior_categories$variable[behavior_categories$category == "High"]
+low_risk_Y_vars <- risk_Y_unified_vars[risk_Y_unified_vars %in% low_risk_vars]
+low_risk_N_vars <- risk_N_unified_vars[risk_N_unified_vars %in% low_risk_vars]
+moderate_risk_Y_vars <- risk_Y_unified_vars[risk_Y_unified_vars %in% moderate_risk_vars]
+moderate_risk_N_vars <- risk_N_unified_vars[risk_N_unified_vars %in% moderate_risk_vars]
+high_risk_Y_vars <- risk_Y_unified_vars[risk_Y_unified_vars %in% high_risk_vars]
+high_risk_N_vars <- risk_N_unified_vars[risk_N_unified_vars %in% high_risk_vars]
+
+# Calculating sums and averages for reward categories, 'Yes' and 'No' variables
+low_rew_vars <- behavior_categories$variable[behavior_categories$category == "Low"]
+moderate_rew_vars <- behavior_categories$variable[behavior_categories$category == "Moderate"]
+high_rew_vars <- behavior_categories$variable[behavior_categories$category == "High"]
+low_rew_Y_vars <- rew_Y_unified_vars[rew_Y_unified_vars %in% low_rew_vars]
+low_rew_N_vars <- rew_N_unified_vars[rew_N_unified_vars %in% low_rew_vars]
+moderate_rew_Y_vars <- rew_Y_unified_vars[rew_Y_unified_vars %in% moderate_rew_vars]
+moderate_rew_N_vars <- rew_N_unified_vars[rew_N_unified_vars %in% moderate_rew_vars]
+high_rew_Y_vars <- rew_Y_unified_vars[rew_Y_unified_vars %in% high_rew_vars]
+high_rew_N_vars <- rew_N_unified_vars[rew_N_unified_vars %in% high_rew_vars]
+
+# Adding risk calculations to the dataframe
+covid_long_final <- covid_long_final %>%
+  mutate(
+    # Low risk calculations
+    sum_low_risk_Y = rowSums(select(., all_of(low_risk_Y_vars)), na.rm = TRUE),
+    sum_low_risk_N = rowSums(select(., all_of(low_risk_N_vars)), na.rm = TRUE),
+    num_low_risk_Y = rowSums(!is.na(select(., all_of(low_risk_Y_vars)))),
+    num_low_risk_N = rowSums(!is.na(select(., all_of(low_risk_N_vars)))),
+    avg_low_risk_Y = sum_low_risk_Y / num_low_risk_Y,
+    avg_low_risk_N = sum_low_risk_N / num_low_risk_N,
+
+    # Moderate risk calculations
+    sum_moderate_risk_Y = rowSums(select(., all_of(moderate_risk_Y_vars)), na.rm = TRUE),
+    sum_moderate_risk_N = rowSums(select(., all_of(moderate_risk_N_vars)), na.rm = TRUE),
+    num_moderate_risk_Y = rowSums(!is.na(select(., all_of(moderate_risk_Y_vars)))),
+    num_moderate_risk_N = rowSums(!is.na(select(., all_of(moderate_risk_N_vars)))),
+    avg_moderate_risk_Y = sum_moderate_risk_Y / num_moderate_risk_Y,
+    avg_moderate_risk_N = sum_moderate_risk_N / num_moderate_risk_N,
+
+    # High risk calculations
+    sum_high_risk_Y = rowSums(select(., all_of(high_risk_Y_vars)), na.rm = TRUE),
+    sum_high_risk_N = rowSums(select(., all_of(high_risk_N_vars)), na.rm = TRUE),
+    num_high_risk_Y = rowSums(!is.na(select(., all_of(high_risk_Y_vars)))),
+    num_high_risk_N = rowSums(!is.na(select(., all_of(high_risk_N_vars)))),
+    avg_high_risk_Y = sum_high_risk_Y / num_high_risk_Y,
+    avg_high_risk_N = sum_high_risk_N / num_high_risk_N
+  )
+
+# Adding reward calculations to the dataframe
+covid_long_final <- covid_long_final %>%
+  mutate(
+    # Low reward calculations
+    sum_low_rew_Y = rowSums(select(., all_of(low_rew_Y_vars)), na.rm = TRUE),
+    sum_low_rew_N = rowSums(select(., all_of(low_rew_N_vars)), na.rm = TRUE),
+    num_low_rew_Y = rowSums(!is.na(select(., all_of(low_rew_Y_vars)))),
+    num_low_rew_N = rowSums(!is.na(select(., all_of(low_rew_N_vars)))),
+    avg_low_rew_Y = sum_low_rew_Y / num_low_rew_Y,
+    avg_low_rew_N = sum_low_rew_N / num_low_rew_N,
+
+    # Moderate reward calculations
+    sum_moderate_rew_Y = rowSums(select(., all_of(moderate_rew_Y_vars)), na.rm = TRUE),
+    sum_moderate_rew_N = rowSums(select(., all_of(moderate_rew_N_vars)), na.rm = TRUE),
+    num_moderate_rew_Y = rowSums(!is.na(select(., all_of(moderate_rew_Y_vars)))),
+    num_moderate_rew_N = rowSums(!is.na(select(., all_of(moderate_rew_N_vars)))),
+    avg_moderate_rew_Y = sum_moderate_rew_Y / num_moderate_rew_Y,
+    avg_moderate_rew_N = sum_moderate_rew_N / num_moderate_rew_N,
+
+    # High reward calculations
+    sum_high_rew_Y = rowSums(select(., all_of(high_rew_Y_vars)), na.rm = TRUE),
+    sum_high_rew_N = rowSums(select(., all_of(high_rew_N_vars)), na.rm = TRUE),
+    num_high_rew_Y = rowSums(!is.na(select(., all_of(high_rew_Y_vars)))),
+    num_high_rew_N = rowSums(!is.na(select(., all_of(high_rew_N_vars)))),
+    avg_high_rew_Y = sum_high_rew_Y / num_high_rew_Y,
+    avg_high_rew_N = sum_high_rew_N / num_high_rew_N
+  )
+
+```
+
+## Mental Health Data: Wrangling & Transformations
+
+Converts mental health survey data from wide to long format for analytical flexibility. It cleans and summarizes the data, mapping each variable to its respective time points defined by suffixes, calculating the number of iterations and value ranges for each variable. This process involves removing redundant rows and establishing a clear structure to facilitate longitudinal analyses, incorporating a 'time_factor' column to align data points with specific survey phases.
+
+**Please note**: the mental health data requires a slightly different approach, and thus, comes with its own unique transformations as a result of each variable having different frequencies of occurrence in the data collection sequence.
+
+```{r Mental Health Scores Data Preparation, message=FALSE, warning=FALSE}
+setwd(survey_path)
+
+# Read in longitudinal mental health questionnaire data, presently in wide format
+mentalhealth_survey_data <- read.csv("FINAL_SURVEY_DATA_2024-06-12.csv")
+
+# Extract the column names
+column_names <- names(mentalhealth_survey_data)
+
+# Create a list where each base variable name is mapped to its original column names after removing suffixes
+base_variable_names <- str_remove_all(column_names, 
+                                      pattern = "_baseline|_two_week|_monthly|_six_week|_second_monthly|_ten_week|_third_monthly")
+
+# Create a unique list of base variable names
+unique_base_variables <- unique(base_variable_names)
+
+# Create a data frame to store the summary of each variable
+variable_summary <- data.frame(variable = unique_base_variables)
+
+# Calculate the number of iterations and value ranges
+variable_summary <- variable_summary %>%
+  rowwise() %>%
+  mutate(
+    iterations = length(grep(paste0("^", variable, "(_|$)"), column_names)),
+    value_range = {
+      cols <- names(mentalhealth_survey_data)[grep(paste0("^", variable, "(_|$)"), column_names)]
+      min_val <- min(unlist(mentalhealth_survey_data[cols], use.names = FALSE), na.rm = TRUE)
+      max_val <- max(unlist(mentalhealth_survey_data[cols], use.names = FALSE), na.rm = TRUE)
+      paste(min_val, max_val, sep = "-")
+    }
+  )
+
+# Manual edits to the data frame iteration values to account for variables with similar base names
+variable_summary <- variable_summary %>%
+  mutate(
+    iterations = case_when(
+      variable == "ami" ~ "7",
+      variable == "bis" ~ "4",
+      variable == "dsm_anger" ~ "4",
+      variable == "dsm_anhedonia" ~ "4",
+      variable == "dsm_anxiety" ~ "4",
+      variable == "dsm_depression" ~ "4",
+      variable == "dsm_dissociation" ~ "4",
+      variable == "dsm_dysphoria" ~ "4",
+      variable == "dsm_mania" ~ "4",
+      variable == "dsm_memory" ~ "4",
+      variable == "dsm_personality" ~ "4",
+      variable == "dsm_psychosis" ~ "4",
+      variable == "dsm_repetition" ~ "4",
+      variable == "dsm_sleep" ~ "4",
+      variable == "dsm_somatic" ~ "4",
+      variable == "dsm_suicidality" ~ "4",
+      variable == "dsm_substance" ~ "4",
+      variable == "dsm_total" ~ "4",
+      variable == "mpss" ~ "4",
+      variable == "panas_positive" ~ "1",
+      variable == "panas_negative" ~ "1",
+      variable == "promis_pain" ~ "2",
+      variable == "promis_physical" ~ "2",
+      TRUE ~ as.character(iterations)  # Keep existing iterations for other variables
+    )
+  ) %>%
+  filter(variable != "record_id")  # Remove the row where variable is 'record_id'
+
+# Define time suffixes and factors
+time_suffixes <- list(
+  `7` = c("_baseline", "_two_week", "_monthly", "_six_week", "_second_monthly", "_ten_week", "_third_monthly"),
+  `4` = c("_baseline", "_monthly", "_second_monthly", "_third_monthly"),
+  `2` = c("_baseline", "_two_week"),
+  `1` = c("_baseline")
+)
+
+time_factors <- list(
+  `7` = c("Baseline", "Two Week Follow-Up", "One Month Follow-Up", "Six Week Follow-Up", "Two Month Follow-Up", "Ten Week Follow-Up", "Three Month Follow-Up"),
+  `4` = c("Baseline", "One Month Follow-Up", "Two Month Follow-Up", "Three Month Follow-Up"),
+  `2` = c("Baseline", "Two Week Follow-Up"),
+  `1` = c("Baseline")
+)
+
+# Transforming mentalhealth_survey_data from wide to long format and creating 'time_factor'
+mentalhealth_survey_data_long <- mentalhealth_survey_data %>%
+  pivot_longer(
+    cols = -record_id,  # Assuming 'record_id' is the identifier and should not be pivoted
+    names_to = "variable_time",
+    values_to = "value"
+  ) %>%
+  mutate(
+    time = case_when(
+      str_detect(variable_time, "_baseline") ~ 0,
+      str_detect(variable_time, "_two_week") ~ 1,
+      str_detect(variable_time, "_monthly") & !str_detect(variable_time, "second_monthly") & !str_detect(variable_time, "third_monthly") ~ 2,
+      str_detect(variable_time, "_six_week") ~ 3,
+      str_detect(variable_time, "_second_monthly") ~ 4,
+      str_detect(variable_time, "_ten_week") ~ 5,
+      str_detect(variable_time, "_third_monthly") ~ 6,
+      TRUE ~ as.integer(NA)  # Handling unexpected cases
+    ),
+    variable = str_remove(variable_time, "_baseline|_two_week|_monthly|_six_week|_second_monthly|_ten_week|_third_monthly"),
+    time_factor = factor(
+      case_when(
+        time == 0 ~ "Baseline",
+        time == 1 ~ "Two Week Follow-Up",
+        time == 2 ~ "One Month Follow-Up",
+        time == 3 ~ "Six Week Follow-Up",
+        time == 4 ~ "Two Month Follow-Up",
+        time == 5 ~ "Ten Week Follow-Up",
+        time == 6 ~ "Three Month Follow-Up",
+        TRUE ~ NA_character_  # Handles any unexpected cases
+      ),
+      levels = c("Baseline", "Two Week Follow-Up", "One Month Follow-Up", "Six Week Follow-Up", "Two Month Follow-Up", "Ten Week Follow-Up", "Three Month Follow-Up")
+    )
+  ) %>%
+  select(record_id, time, time_factor, variable, value)  # Reorder and select only necessary columns
+
+# Omit specific time points for DSM variables
+dsm_vars <- c("dsm_anger", "dsm_anhedonia", "dsm_anxiety", "dsm_depression", "dsm_dissociation"
+              , "dsm_dysphoria", "dsm_mania", "dsm_memory", "dsm_personality", "dsm_psychosis",
+              "dsm_repetition", "dsm_sleep", "dsm_somatic", "dsm_suicidality", "dsm_substance",
+              "dsm_total")
+
+omit_times <- c("Two Week Follow-Up", "Six Week Follow-Up", "Ten Week Follow-Up")
+
+# Filter out unwanted time points for DSM variables
+mentalhealth_survey_data_long <- mentalhealth_survey_data_long %>%
+  filter(!(variable %in% dsm_vars & time_factor %in% omit_times))
+
+# Keep specific time points for PROMIS variables
+promis_vars <- c("promis_pain", "promis_physical")
+keep_promis_times <- c("Baseline", "Two Week Follow-Up")
+
+# Filter and keep specific time points for PROMIS variables
+mentalhealth_survey_data_long <- mentalhealth_survey_data_long %>%
+  filter(!(variable %in% promis_vars) | (variable %in% promis_vars & time_factor %in% keep_promis_times))
+
+# Keep specific time points for PANAS variables
+panas_vars <- c("panas_positive", "panas_negative")
+keep_panas_times <- "Baseline"
+
+# Filter and keep specific time points for PANAS variables
+mentalhealth_survey_data_long <- mentalhealth_survey_data_long %>%
+  filter(!(variable %in% panas_vars) | (variable %in% panas_vars & time_factor == keep_panas_times))
+
+# Print the updated data frame to verify that variables were properly transformed
+print(mentalhealth_survey_data_long)
+
+```
+
+## Descriptive Statistics & Visualizations
+
+Please use the data frame '**covid_long_final**' for any descriptive statistics calculations or visualizations pertaining to behavior, risk, &/or reward data. **Note**: **These data frames are already in long format**.
+
+Extracts descriptive statistics for behavior, risk, reward, and mental health data across different time points. Outputs are then converted into a consolidated data frame, reformatted for improved readability, and displayed as a multi-tiered HTML table with headers representing each time point.
+
+```{r Calculating & Tabling Descriptives for Behavior, Risk, and Reward Data, message=FALSE, warning=FALSE}
+# Reorder columns in final data frame to verify baseline completion dates match
+covid_long_final <- covid_long_final %>%
+  select(record_id, time, baseline_date_complete, baseline_date_complete.x, baseline_date_complete.y, everything())
+
+# Following verification, remove the duplicate columns
+covid_long_final <- covid_long_final %>%
+  select(-baseline_date_complete.x, -baseline_date_complete.y)
+
+# Add new column assigning group label based on baseline completion date and ensure it's a factor
+covid_long_final <- covid_long_final %>%
+  mutate(baseline_date_complete = mdy(baseline_date_complete),  # Convert to Date format if not already
+         covid_group = case_when(
+           baseline_date_complete >= mdy("05/01/2020") & baseline_date_complete <= mdy("11/30/2020") ~ "first_wave",
+           baseline_date_complete >= mdy("12/01/2020") & baseline_date_complete <= mdy("2/28/2021") ~ "second_wave",
+           TRUE ~ NA_character_  # for dates outside the range or NA
+         ),
+         covid_group = factor(covid_group, levels = c("first_wave", "second_wave"))) %>%
+  relocate(covid_group, .after = baseline_date_complete)  # Move covid_group right after baseline_date_complete
+
+# Function to convert describeBy output to data frame
+describe_to_df <- function(describe_obj) {
+  bind_rows(lapply(describe_obj, as.data.frame))
+}
+
+# Generate describeBy outputs
+describe_sum_risk_Y <- describeBy(covid_long_final$sum_risk_Y, group = covid_long_final$time)
+describe_sum_risk_N <- describeBy(covid_long_final$sum_risk_N, group = covid_long_final$time)
+describe_avg_risk_Y <- describeBy(covid_long_final$avg_risk_Y, group = covid_long_final$time)
+describe_avg_risk_N <- describeBy(covid_long_final$avg_risk_N, group = covid_long_final$time)
+describe_sum_low_risk_Y <- describeBy(covid_long_final$sum_low_risk_Y, group = covid_long_final$time)
+describe_sum_low_risk_N <- describeBy(covid_long_final$sum_low_risk_N, group = covid_long_final$time)
+describe_avg_low_risk_Y <- describeBy(covid_long_final$avg_low_risk_Y, group = covid_long_final$time)
+describe_avg_low_risk_N <- describeBy(covid_long_final$avg_low_risk_N, group = covid_long_final$time)
+describe_sum_moderate_risk_Y <- describeBy(covid_long_final$sum_moderate_risk_Y, group = covid_long_final$time)
+describe_sum_moderate_risk_N <- describeBy(covid_long_final$sum_moderate_risk_N, group = covid_long_final$time)
+describe_avg_moderate_risk_Y <- describeBy(covid_long_final$avg_moderate_risk_Y, group = covid_long_final$time)
+describe_avg_moderate_risk_N <- describeBy(covid_long_final$avg_moderate_risk_N, group = covid_long_final$time)
+describe_sum_high_risk_Y <- describeBy(covid_long_final$sum_high_risk_Y, group = covid_long_final$time)
+describe_sum_high_risk_N <- describeBy(covid_long_final$sum_high_risk_N, group = covid_long_final$time)
+describe_avg_high_risk_Y <- describeBy(covid_long_final$avg_high_risk_Y, group = covid_long_final$time)
+describe_avg_high_risk_N <- describeBy(covid_long_final$avg_high_risk_N, group = covid_long_final$time)
+describe_sum_rew_Y <- describeBy(covid_long_final$sum_rew_Y, group = covid_long_final$time)
+describe_sum_rew_N <- describeBy(covid_long_final$sum_rew_N, group = covid_long_final$time)
+describe_avg_rew_Y <- describeBy(covid_long_final$avg_rew_Y, group = covid_long_final$time)
+describe_avg_rew_N <- describeBy(covid_long_final$avg_rew_N, group = covid_long_final$time)
+describe_sum_low_rew_Y <- describeBy(covid_long_final$sum_low_rew_Y, group = covid_long_final$time)
+describe_sum_low_rew_N <- describeBy(covid_long_final$sum_low_rew_N, group = covid_long_final$time)
+describe_avg_low_rew_Y <- describeBy(covid_long_final$avg_low_rew_Y, group = covid_long_final$time)
+describe_avg_low_rew_N <- describeBy(covid_long_final$avg_low_rew_N, group = covid_long_final$time)
+describe_sum_moderate_rew_Y <- describeBy(covid_long_final$sum_moderate_rew_Y, group = covid_long_final$time)
+describe_sum_moderate_rew_N <- describeBy(covid_long_final$sum_moderate_rew_N, group = covid_long_final$time)
+describe_avg_moderate_rew_Y <- describeBy(covid_long_final$avg_moderate_rew_Y, group = covid_long_final$time)
+describe_avg_moderate_rew_N <- describeBy(covid_long_final$avg_moderate_rew_N, group = covid_long_final$time)
+describe_sum_high_rew_Y <- describeBy(covid_long_final$sum_high_rew_Y, group = covid_long_final$time)
+describe_sum_high_rew_N <- describeBy(covid_long_final$sum_high_rew_N, group = covid_long_final$time)
+describe_avg_high_rew_Y <- describeBy(covid_long_final$avg_high_rew_Y, group = covid_long_final$time)
+describe_avg_high_rew_N <- describeBy(covid_long_final$avg_high_rew_N, group = covid_long_final$time)
+
+# Convert each describeBy output to data frame
+df_sum_risk_Y <- describe_to_df(describe_sum_risk_Y)
+df_sum_risk_N <- describe_to_df(describe_sum_risk_N)
+df_avg_risk_Y <- describe_to_df(describe_avg_risk_Y)
+df_avg_risk_N <- describe_to_df(describe_avg_risk_N)
+df_sum_low_risk_Y <- describe_to_df(describe_sum_low_risk_Y)
+df_sum_low_risk_N <- describe_to_df(describe_sum_low_risk_N)
+df_avg_low_risk_Y <- describe_to_df(describe_avg_low_risk_Y)
+df_avg_low_risk_N <- describe_to_df(describe_avg_low_risk_N)
+df_sum_moderate_risk_Y <- describe_to_df(describe_sum_moderate_risk_Y)
+df_sum_moderate_risk_N <- describe_to_df(describe_sum_moderate_risk_N)
+df_avg_moderate_risk_Y <- describe_to_df(describe_avg_moderate_risk_Y)
+df_avg_moderate_risk_N <- describe_to_df(describe_avg_moderate_risk_N)
+df_sum_high_risk_Y <- describe_to_df(describe_sum_high_risk_Y)
+df_sum_high_risk_N <- describe_to_df(describe_sum_high_risk_N)
+df_avg_high_risk_Y <- describe_to_df(describe_avg_high_risk_Y)
+df_avg_high_risk_N <- describe_to_df(describe_avg_high_risk_N)
+df_sum_rew_Y <- describe_to_df(describe_sum_rew_Y)
+df_sum_rew_N <- describe_to_df(describe_sum_rew_N)
+df_avg_rew_Y <- describe_to_df(describe_avg_rew_Y)
+df_avg_rew_N <- describe_to_df(describe_avg_rew_N)
+df_sum_low_rew_Y <- describe_to_df(describe_sum_low_rew_Y)
+df_sum_low_rew_N <- describe_to_df(describe_sum_low_rew_N)
+df_avg_low_rew_Y <- describe_to_df(describe_avg_low_rew_Y)
+df_avg_low_rew_N <- describe_to_df(describe_avg_low_rew_N)
+df_sum_moderate_rew_Y <- describe_to_df(describe_sum_moderate_rew_Y)
+df_sum_moderate_rew_N <- describe_to_df(describe_sum_moderate_rew_N)
+df_avg_moderate_rew_Y <- describe_to_df(describe_avg_moderate_rew_Y)
+df_avg_moderate_rew_N <- describe_to_df(describe_avg_moderate_rew_N)
+df_sum_high_rew_Y <- describe_to_df(describe_sum_high_rew_Y)
+df_sum_high_rew_N <- describe_to_df(describe_sum_high_rew_N)
+df_avg_high_rew_Y <- describe_to_df(describe_avg_high_rew_Y)
+df_avg_high_rew_N <- describe_to_df(describe_avg_high_rew_N)
+
+# Combine all data frames into one
+combined_df <- bind_rows(
+  df_sum_risk_Y %>% mutate(variable = "sum_risk_Y"),
+  df_sum_risk_N %>% mutate(variable = "sum_risk_N"),
+  df_avg_risk_Y %>% mutate(variable = "avg_risk_Y"),
+  df_avg_risk_N %>% mutate(variable = "avg_risk_N"),
+  df_sum_low_risk_Y %>% mutate(variable = "sum_low_risk_Y"),
+  df_sum_low_risk_N %>% mutate(variable = "sum_low_risk_N"),
+  df_avg_low_risk_Y %>% mutate(variable = "avg_low_risk_Y"),
+  df_avg_low_risk_N %>% mutate(variable = "avg_low_risk_N"),
+  df_sum_moderate_risk_Y %>% mutate(variable = "sum_moderate_risk_Y"),
+  df_sum_moderate_risk_N %>% mutate(variable = "sum_moderate_risk_N"),
+  df_avg_moderate_risk_Y %>% mutate(variable = "avg_moderate_risk_Y"),
+  df_avg_moderate_risk_N %>% mutate(variable = "avg_moderate_risk_N"),
+  df_sum_high_risk_Y %>% mutate(variable = "sum_high_risk_Y"),
+  df_sum_high_risk_N %>% mutate(variable = "sum_high_risk_N"),
+  df_avg_high_risk_Y %>% mutate(variable = "avg_high_risk_Y"),
+  df_avg_high_risk_N %>% mutate(variable = "avg_high_risk_N"),
+  df_sum_rew_Y %>% mutate(variable = "sum_rew_Y"),
+  df_sum_rew_N %>% mutate(variable = "sum_rew_N"),
+  df_avg_rew_Y %>% mutate(variable = "avg_rew_Y"),
+  df_avg_rew_N %>% mutate(variable = "avg_rew_N"),
+  df_sum_low_rew_Y %>% mutate(variable = "sum_low_rew_Y"),
+  df_sum_low_rew_N %>% mutate(variable = "sum_low_rew_N"),
+  df_avg_low_rew_Y %>% mutate(variable = "avg_low_rew_Y"),
+  df_avg_low_rew_N %>% mutate(variable = "avg_low_rew_N"),
+  df_sum_moderate_rew_Y %>% mutate(variable = "sum_moderate_rew_Y"),
+  df_sum_moderate_rew_N %>% mutate(variable = "sum_moderate_rew_N"),
+  df_avg_moderate_rew_Y %>% mutate(variable = "avg_moderate_rew_Y"),
+  df_avg_moderate_rew_N %>% mutate(variable = "avg_moderate_rew_N"),
+  df_sum_high_rew_Y %>% mutate(variable = "sum_high_rew_Y"),
+  df_sum_high_rew_N %>% mutate(variable = "sum_high_rew_N"),
+  df_avg_high_rew_Y %>% mutate(variable = "avg_high_rew_Y"),
+  df_avg_high_rew_N %>% mutate(variable = "avg_high_rew_N")
+)
+
+# Rename 'vars' to 'time'
+combined_df <- combined_df %>%
+  dplyr::rename(time = vars)
+
+# Recode the 'time' column to have a sequence from 0 to 6 for each set of variables
+combined_df <- combined_df %>%
+  dplyr::mutate(time = rep(0:6, length.out = n()))
+
+# Spread the combined data frame for a nicer format
+final_table <- combined_df %>%
+  select(variable, time, n, mean, sd, median, min, max)
+
+# Pivot the data to a wider format with a specific order for statistics
+wide_df <- final_table %>%
+  pivot_wider(
+    names_from = time,  # Assuming 'time' column is correctly set as a factor or numeric already
+    values_from = c(n, mean, sd, median, min, max),
+    names_sep = "_"  # Creating column names like mean_0, sd_0, etc.
+  ) %>%
+  select(variable,
+         starts_with("n"), starts_with("mean"), starts_with("sd"), starts_with("median"),
+         starts_with("min"), starts_with("max"))
+
+# Generate the ordered column names dynamically based on the desired pattern
+stats_order <- c("n", "mean", "sd", "median", "min", "max")
+time_points <- 0:6  # Assuming time points are from 0 to 6
+ordered_column_names <- unlist(lapply(time_points, function(t) paste(stats_order, t, sep = "_")))
+
+# Select columns in the desired order
+wide_df <- wide_df %>%
+  select(variable, all_of(ordered_column_names))
+
+# Now, strip the time suffixes from the column names for display purposes only
+clean_column_names <- rep(stats_order, times = length(time_points))
+
+# Rename the columns for display
+names(wide_df)[-1] <- clean_column_names  # Excluding the first column which is 'variable'
+
+# Create the formatted table with specified header spans
+formatted_table <- kable(wide_df, "html", escape = FALSE) %>%
+  kable_styling(full_width = FALSE, position = "left") %>%
+  add_header_above(c(" " = 1, 
+                     "Baseline" = length(stats_order), 
+                     "Two Week Follow-Up" = length(stats_order), 
+                     "One Month Follow-Up" = length(stats_order), 
+                     "Six Week Follow-Up" = length(stats_order), 
+                     "Two Month Follow-Up" = length(stats_order), 
+                     "Ten Week Follow-Up" = length(stats_order), 
+                     "Three Month Follow-Up" = length(stats_order))) %>%
+  column_spec(1, bold = TRUE, border_right = TRUE) %>%
+  scroll_box(width = "100%", height = "500px")
+
+# Print the formatted table
+formatted_table
+
+```
+
+```{r Calculating & Tabling Descriptives for Mental Health Data, message=FALSE, warning=FALSE}
+# Map from time factors to numerical values
+time_mapping <- c('Baseline' = 0,
+                  'Two Week Follow-Up' = 1,
+                  'One Month Follow-Up' = 2,
+                  'Six Week Follow-Up' = 3,
+                  'Two Month Follow-Up' = 4,
+                  'Ten Week Follow-Up' = 5,
+                  'Three Month Follow-Up' = 6)
+
+# Store results in a list
+summary_list <- list()
+
+# Loop over each variable in the variable_summary data frame
+for (i in 1:nrow(variable_summary)) {
+  variable_name <- variable_summary$variable[i]
+  iterations <- as.character(variable_summary$iterations[i])
+  
+  # Get the appropriate suffixes and time factors for the current number of iterations
+  suffixes <- time_suffixes[[iterations]]
+  factors <- time_factors[[iterations]]
+  
+  # Create a data frame to store summaries for the current variable
+  variable_data <- list()
+  
+  # Calculate statistics for each suffix
+  for (j in seq_along(suffixes)) {
+    full_var_name <- paste0(variable_name, suffixes[j])
+    # Check if the column exists in the data, to avoid errors
+    if (full_var_name %in% names(mentalhealth_survey_data)) {
+      temp_data <- mentalhealth_survey_data %>%
+        dplyr::summarise(
+          score_mean = mean(.data[[full_var_name]], na.rm = TRUE),
+          n = sum(!is.na(.data[[full_var_name]])),  # Sample size excluding NAs
+          sem = sd(.data[[full_var_name]], na.rm = TRUE) / sqrt(sum(!is.na(.data[[full_var_name]]))),
+          .groups = 'drop'
+        ) %>%
+        mutate(
+          time_factor = factors[j],
+          time = time_mapping[[factors[j]]]  # Assign numerical time based on factor
+        )
+      
+      variable_data[[j]] <- temp_data
+    }
+  }
+  
+  # Combine all time point data into one data frame for the current variable
+  variable_data <- bind_rows(variable_data)
+  summary_list[[variable_name]] <- variable_data
+}
+
+# Optionally, if you want to save each data frame separately or operate further
+for (name in names(summary_list)) {
+  assign(paste0("filtered_", name, "_summary"), summary_list[[name]], envir = .GlobalEnv)
+}
+
+```
+
+Visual representations are crafted for average risk and reward scores using box plots and density ridge plots, segregated by time factors. This section meticulously prepares the data descriptives, culminating in a series of raincloud plots that highlight temporal variations in the dataset.
+
+```{r Descriptive Visualizations for Behavior, Risk, and Reward Data, message=FALSE, warning=FALSE}
+# Prepare the time factor
+covid_long_final <- covid_long_final %>%
+  mutate(
+    time_factor = factor(time, levels = 0:6, labels = c(
+      "Baseline", "Two Week Follow-Up", "One Month Follow-Up", 
+      "Six Week Follow-Up", "Two Month Follow-Up", "Ten Week Follow-Up", 
+      "Three Month Follow-Up"
+    ))
+  )
+
+# Creating the density ridge plot for average 'yes' risk scores
+p1 <- ggplot(covid_long_final, aes(x = avg_risk_Y, y = time_factor, fill = time_factor)) +
+  ggridges::geom_density_ridges(alpha = 0.5, jittered_points = TRUE, point_alpha = 0.5, size = 0.25, point_shape = 20, aes(color = time_factor)) +
+  labs(x = "Avg 'Yes' Risk Score", y = '') +
+  guides(fill = FALSE, color = FALSE) +
+  theme_minimal() +
+  xlim(0, 100)
+
+# Creating the density ridge plot for average 'no' risk scores
+p2 <- ggplot(covid_long_final, aes(x = avg_risk_N, y = time_factor, fill = time_factor)) +
+  ggridges::geom_density_ridges(alpha = 0.5, jittered_points = TRUE, point_alpha = 0.5, size = 0.25, point_shape = 20, aes(color = time_factor)) +
+  labs(x = "Avg 'No' Risk Score", y = '') +
+  guides(fill = FALSE, color = FALSE) +
+  theme_minimal() +
+  xlim(0, 100)
+
+# Display the density plots
+grid.arrange(p1, p2, ncol = 2)
+
+# Creating the density ridge plot for average 'yes' reward scores
+p3 <- ggplot(covid_long_final, aes(x = avg_rew_Y, y = time_factor, fill = time_factor)) +
+  ggridges::geom_density_ridges(alpha = 0.5, jittered_points = TRUE, point_alpha = 0.5, size = 0.25, point_shape = 20, aes(color = time_factor)) +
+  labs(x = "Avg 'Yes' Reward Score", y = '') +
+  guides(fill = FALSE, color = FALSE) +
+  theme_minimal() +
+  xlim(0, 100)
+
+# Creating the density ridge plot for average 'no' reward scores
+p4 <- ggplot(covid_long_final, aes(x = avg_rew_N, y = time_factor, fill = time_factor)) +
+  ggridges::geom_density_ridges(alpha = 0.5, jittered_points = TRUE, point_alpha = 0.5, size = 0.25, point_shape = 20, aes(color = time_factor)) +
+  labs(x = "Avg 'No' Reward Score", y = '') +
+  guides(fill = FALSE, color = FALSE) +
+  theme_minimal() +
+  xlim(0, 100)
+
+# Display the density plots
+grid.arrange(p3, p4, ncol = 2)
+
+# Create the summary avg risk 'Y' data frame
+filtered_AvgRiskY_summary <- covid_long_final %>%
+  group_by(time_factor) %>%
+  dplyr::summarise(
+    score_mean = mean(avg_risk_Y, na.rm = TRUE),
+    n = n(), # Sample size for each group
+    sem = sd(avg_risk_Y, na.rm = TRUE) / sqrt(n()),
+    .groups = 'drop'
+  )
+
+# Create the summary avg risk 'N' data frame
+filtered_AvgRiskN_summary <- covid_long_final %>%
+  group_by(time_factor) %>%
+  dplyr::summarise(
+    score_mean = mean(avg_risk_N, na.rm = TRUE),
+    n = n(), # Sample size for each group
+    sem = sd(avg_risk_N, na.rm = TRUE) / sqrt(n()),
+    .groups = 'drop'
+  )
+
+# Create the summary avg reward 'Y' data frame
+filtered_AvgRewY_summary <- covid_long_final %>%
+  group_by(time_factor) %>%
+  dplyr::summarise(
+    score_mean = mean(avg_rew_Y, na.rm = TRUE),
+    n = n(), # Sample size for each group
+    sem = sd(avg_rew_Y, na.rm = TRUE) / sqrt(n()),
+    .groups = 'drop'
+  )
+
+# Create the summary avg reward 'N' data frame
+filtered_AvgRewN_summary <- covid_long_final %>%
+  group_by(time_factor) %>%
+  dplyr::summarise(
+    score_mean = mean(avg_rew_N, na.rm = TRUE),
+    n = n(), # Sample size for each group
+    sem = sd(avg_rew_N, na.rm = TRUE) / sqrt(n()),
+    .groups = 'drop'
+  )
+
+# Create a avg 'yes' risk raincloud plot
+p5 <- ggplot(covid_long_final, aes(x = time_factor, y = avg_risk_Y, fill = time_factor, color = time_factor)) +
+  geom_flat_violin(adjust = 1.5, trim = FALSE, alpha = 0.5, position = position_nudge(x = 0.2, y = 0), colour = NA) +
+  geom_point(aes(x = as.numeric(time_factor)-0.25, y = avg_risk_Y, colour = time_factor), position = position_jitter(width = .05), size = .5, shape = 20) +
+  geom_boxplot(outlier.shape = NA, alpha = 0.5, width = 0.25, position = position_dodge(width = 0.3), colour = "black") +
+  geom_point(data = filtered_AvgRiskY_summary, aes(x = factor(time_factor), y = score_mean), shape = 18, position = position_nudge(x = 0.2)) +
+  geom_errorbar(data = filtered_AvgRiskY_summary, aes(x = factor(time_factor), y = score_mean, ymin = score_mean - sem, ymax = score_mean + sem), width = 0.05, position = position_nudge(x = 0.2)) +
+  labs(
+    title = "Avg 'Yes' Risk Scores by Time Point", 
+    y = "Score", 
+    x = "Time Point", 
+    fill = "Time Point",  # Legend title for fill
+    color = "Time Point"  # Legend title for color
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "right",
+    legend.title = element_text(face = "bold"), # Make legend title bold
+    axis.text.x = element_text(angle = 45, hjust = 1)  # Rotate x-axis labels by 45 degrees
+  ) +
+  ylim(-5, 105)
+
+print(p5)
+
+# Create a avg 'no' risk raincloud plot
+p6 <- ggplot(covid_long_final, aes(x = time_factor, y = avg_risk_N, fill = time_factor, color = time_factor)) +
+  geom_flat_violin(adjust = 1.5, trim = FALSE, alpha = 0.5, position = position_nudge(x = 0.2, y = 0), colour = NA) +
+  geom_point(aes(x = as.numeric(time_factor)-0.25, y = avg_risk_N, colour = time_factor), position = position_jitter(width = .05), size = .5, shape = 20) +
+  geom_boxplot(outlier.shape = NA, alpha = 0.5, width = 0.25, position = position_dodge(width = 0.3), colour = "black") +
+  geom_point(data = filtered_AvgRiskN_summary, aes(x = factor(time_factor), y = score_mean), shape = 18, position = position_nudge(x = 0.2)) +
+  geom_errorbar(data = filtered_AvgRiskN_summary, aes(x = factor(time_factor), y = score_mean, ymin = score_mean - sem, ymax = score_mean + sem), width = 0.05, position = position_nudge(x = 0.2)) +
+  labs(
+    title = "Avg 'No' Risk Scores by Time Point", 
+    y = "Score", 
+    x = "Time Point", 
+    fill = "Time Point",  # Legend title for fill
+    color = "Time Point"  # Legend title for color
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "right",
+    legend.title = element_text(face = "bold"), # Make legend title bold
+    axis.text.x = element_text(angle = 45, hjust = 1)  # Rotate x-axis labels by 45 degrees
+  ) +
+  ylim(-5, 105)
+
+print(p6)
+
+# Combine raincloud plots and place the legend on the right
+combined_plot56 <- p5 + p6 + plot_layout(guides = 'collect') &
+  theme(legend.position = 'right')
+
+# Print the combined plot
+print(combined_plot56)
+
+# Create a avg 'yes' reward raincloud plot
+p7 <- ggplot(covid_long_final, aes(x = time_factor, y = avg_rew_Y, fill = time_factor, color = time_factor)) +
+  geom_flat_violin(adjust = 1.5, trim = FALSE, alpha = 0.5, position = position_nudge(x = 0.2, y = 0), colour = NA) +
+  geom_point(aes(x = as.numeric(time_factor)-0.25, y = avg_rew_Y, colour = time_factor), position = position_jitter(width = .05), size = .5, shape = 20) +
+  geom_boxplot(outlier.shape = NA, alpha = 0.5, width = 0.25, position = position_dodge(width = 0.3), colour = "black") +
+  geom_point(data = filtered_AvgRewY_summary, aes(x = factor(time_factor), y = score_mean), shape = 18, position = position_nudge(x = 0.2)) +
+  geom_errorbar(data = filtered_AvgRewY_summary, aes(x = factor(time_factor), y = score_mean, ymin = score_mean - sem, ymax = score_mean + sem), width = 0.05, position = position_nudge(x = 0.2)) +
+  labs(
+    title = "Avg 'Yes' Reward Scores by Time Point", 
+    y = "Score", 
+    x = "Time Point", 
+    fill = "Time Point",  # Legend title for fill
+    color = "Time Point"  # Legend title for color
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "right",
+    legend.title = element_text(face = "bold"), # Make legend title bold
+    axis.text.x = element_text(angle = 45, hjust = 1)  # Rotate x-axis labels by 45 degrees
+  ) +
+  ylim(-5, 105)
+
+print(p7)
+
+# Create a avg 'no' reward raincloud plot
+p8 <- ggplot(covid_long_final, aes(x = time_factor, y = avg_rew_N, fill = time_factor, color = time_factor)) +
+  geom_flat_violin(adjust = 1.5, trim = FALSE, alpha = 0.5, position = position_nudge(x = 0.2, y = 0), colour = NA) +
+  geom_point(aes(x = as.numeric(time_factor)-0.25, y = avg_rew_N, colour = time_factor), position = position_jitter(width = .05), size = .5, shape = 20) +
+  geom_boxplot(outlier.shape = NA, alpha = 0.5, width = 0.25, position = position_dodge(width = 0.3), colour = "black") +
+  geom_point(data = filtered_AvgRewN_summary, aes(x = factor(time_factor), y = score_mean), shape = 18, position = position_nudge(x = 0.2)) +
+  geom_errorbar(data = filtered_AvgRewN_summary, aes(x = factor(time_factor), y = score_mean, ymin = score_mean - sem, ymax = score_mean + sem), width = 0.05, position = position_nudge(x = 0.2)) +
+  labs(
+    title = "Avg 'No' Reward Scores by Time Point", 
+    y = "Score", 
+    x = "Time Point", 
+    fill = "Time Point",  # Legend title for fill
+    color = "Time Point"  # Legend title for color
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "right",
+    legend.title = element_text(face = "bold"), # Make legend title bold
+    axis.text.x = element_text(angle = 45, hjust = 1)  # Rotate x-axis labels by 45 degrees
+  ) +
+  ylim(-5, 105)
+
+print(p8)
+
+# Combine raincloud plots and place the legend on the right
+combined_plot78 <- p7 + p8 + plot_layout(guides = 'collect') &
+  theme(legend.position = 'right')
+
+# Print the combined plot
+print(combined_plot78)
+
+### Repeating steps above but stratifying by both time points and epidemiological waves
+# Create the summary avg risk 'Y' data frame
+filtered_AvgRiskY_waves <- covid_long_final %>%
+  group_by(time_factor, covid_group) %>%
+  dplyr::summarise(
+    score_mean = mean(avg_risk_Y, na.rm = TRUE),
+    n = n(), # Sample size for each group
+    sem = sd(avg_risk_Y, na.rm = TRUE) / sqrt(n()),
+    .groups = 'drop'
+  )
+
+# Create the summary avg risk 'N' data frame
+filtered_AvgRiskN_waves <- covid_long_final %>%
+  group_by(time_factor, covid_group) %>%
+  dplyr::summarise(
+    score_mean = mean(avg_risk_N, na.rm = TRUE),
+    n = n(), # Sample size for each group
+    sem = sd(avg_risk_N, na.rm = TRUE) / sqrt(n()),
+    .groups = 'drop'
+  )
+
+# Create the summary avg reward 'Y' data frame
+filtered_AvgRewY_waves <- covid_long_final %>%
+  group_by(time_factor, covid_group) %>%
+  dplyr::summarise(
+    score_mean = mean(avg_rew_Y, na.rm = TRUE),
+    n = n(), # Sample size for each group
+    sem = sd(avg_rew_Y, na.rm = TRUE) / sqrt(n()),
+    .groups = 'drop'
+  )
+
+# Create the summary avg reward 'N' data frame
+filtered_AvgRewN_waves <- covid_long_final %>%
+  group_by(time_factor, covid_group) %>%
+  dplyr::summarise(
+    score_mean = mean(avg_rew_N, na.rm = TRUE),
+    n = n(), # Sample size for each group
+    sem = sd(avg_rew_N, na.rm = TRUE) / sqrt(n()),
+    .groups = 'drop'
+  )
+
+# Create a avg 'yes' risk raincloud plot
+ggplot(covid_long_final, aes(x = time_factor, y = avg_risk_Y, fill = covid_group, color = covid_group)) +
+  geom_flat_violin(adjust = 1.5, trim = FALSE, alpha = 0.5, position = position_nudge(x = 0.2, y = 0), colour = NA) +
+  geom_point(aes(x = as.numeric(time_factor)-0.25, y = avg_risk_Y, colour = covid_group), position = position_jitter(width = .05), size = .5, shape = 20) +
+  geom_boxplot(outlier.shape = NA, alpha = 0.5, width = 0.25, position = position_dodge(width = 0.3), colour = "black") +
+  geom_line(data = filtered_AvgRiskY_waves, aes(x = factor(time_factor), y = score_mean, group = covid_group, colour = covid_group), linetype = 2, position = position_nudge(x = 0.2)) +
+  geom_point(data = filtered_AvgRiskY_waves, aes(x = factor(time_factor), y = score_mean), shape = 18, position = position_nudge(x = 0.2)) +
+  geom_errorbar(data = filtered_AvgRiskY_waves, aes(x = factor(time_factor), y = score_mean, ymin = score_mean - sem, ymax = score_mean + sem), width = 0.05, position = position_nudge(x = 0.2)) +
+  labs(
+    title = "Avg 'Yes' Risk Scores by Time Point & Wave", 
+    y = "Score", 
+    x = "Time Point", 
+    fill = "COVID Wave",  # Legend title for fill
+    color = "COVID Wave"  # Legend title for color
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "right",
+    legend.title = element_text(face = "bold"), # Make legend title bold
+    axis.text.x = element_text(angle = 45, hjust = 1)  # Rotate x-axis labels by 45 degrees
+  ) +
+  ylim(-5, 105)
+
+# Create a avg 'no' risk raincloud plot
+ggplot(covid_long_final, aes(x = time_factor, y = avg_risk_N, fill = covid_group, color = covid_group)) +
+  geom_flat_violin(adjust = 1.5, trim = FALSE, alpha = 0.5, position = position_nudge(x = 0.2, y = 0), colour = NA) +
+  geom_point(aes(x = as.numeric(time_factor)-0.25, y = avg_risk_N, colour = covid_group), position = position_jitter(width = .05), size = .5, shape = 20) +
+  geom_boxplot(outlier.shape = NA, alpha = 0.5, width = 0.25, position = position_dodge(width = 0.3), colour = "black") +
+  geom_line(data = filtered_AvgRiskN_waves, aes(x = factor(time_factor), y = score_mean, group = covid_group, colour = covid_group), linetype = 2, position = position_nudge(x = 0.2)) +
+  geom_point(data = filtered_AvgRiskN_waves, aes(x = factor(time_factor), y = score_mean), shape = 18, position = position_nudge(x = 0.2)) +
+  geom_errorbar(data = filtered_AvgRiskN_waves, aes(x = factor(time_factor), y = score_mean, ymin = score_mean - sem, ymax = score_mean + sem), width = 0.05, position = position_nudge(x = 0.2)) +
+  labs(
+    title = "Avg 'No' Risk Scores by Time Point & Wave", 
+    y = "Score", 
+    x = "Time Point", 
+    fill = "COVID Wave",  # Legend title for fill
+    color = "COVID Wave"  # Legend title for color
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "right",
+    legend.title = element_text(face = "bold"), # Make legend title bold
+    axis.text.x = element_text(angle = 45, hjust = 1)  # Rotate x-axis labels by 45 degrees
+  ) +
+  ylim(-5, 105)
+
+# Create a avg 'yes' reward raincloud plot
+ggplot(covid_long_final, aes(x = time_factor, y = avg_rew_Y, fill = covid_group, color = covid_group)) +
+  geom_flat_violin(adjust = 1.5, trim = FALSE, alpha = 0.5, position = position_nudge(x = 0.2, y = 0), colour = NA) +
+  geom_point(aes(x = as.numeric(time_factor)-0.25, y = avg_rew_Y, colour = covid_group), position = position_jitter(width = .05), size = .5, shape = 20) +
+  geom_boxplot(outlier.shape = NA, alpha = 0.5, width = 0.25, position = position_dodge(width = 0.3), colour = "black") +
+  geom_line(data = filtered_AvgRewY_waves, aes(x = factor(time_factor), y = score_mean, group = covid_group, colour = covid_group), linetype = 2, position = position_nudge(x = 0.2)) +
+  geom_point(data = filtered_AvgRewY_waves, aes(x = factor(time_factor), y = score_mean), shape = 18, position = position_nudge(x = 0.2)) +
+  geom_errorbar(data = filtered_AvgRewY_waves, aes(x = factor(time_factor), y = score_mean, ymin = score_mean - sem, ymax = score_mean + sem), width = 0.05, position = position_nudge(x = 0.2)) +
+  labs(
+    title = "Avg 'Yes' Reward Scores by Time Point & Wave", 
+    y = "Score", 
+    x = "Time Point", 
+    fill = "COVID Wave",  # Legend title for fill
+    color = "COVID Wave"  # Legend title for color
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "right",
+    legend.title = element_text(face = "bold"), # Make legend title bold
+    axis.text.x = element_text(angle = 45, hjust = 1)  # Rotate x-axis labels by 45 degrees
+  ) +
+  ylim(-5, 105)
+
+# Create a avg 'no' reward raincloud plot
+ggplot(covid_long_final, aes(x = time_factor, y = avg_rew_N, fill = covid_group, color = covid_group)) +
+  geom_flat_violin(adjust = 1.5, trim = FALSE, alpha = 0.5, position = position_nudge(x = 0.2, y = 0), colour = NA) +
+  geom_point(aes(x = as.numeric(time_factor)-0.25, y = avg_rew_N, colour = covid_group), position = position_jitter(width = .05), size = .5, shape = 20) +
+  geom_boxplot(outlier.shape = NA, alpha = 0.5, width = 0.25, position = position_dodge(width = 0.3), colour = "black") +
+  geom_line(data = filtered_AvgRewN_waves, aes(x = factor(time_factor), y = score_mean, group = covid_group, colour = covid_group), linetype = 2, position = position_nudge(x = 0.2)) +
+  geom_point(data = filtered_AvgRewN_waves, aes(x = factor(time_factor), y = score_mean), shape = 18, position = position_nudge(x = 0.2)) +
+  geom_errorbar(data = filtered_AvgRewN_waves, aes(x = factor(time_factor), y = score_mean, ymin = score_mean - sem, ymax = score_mean + sem), width = 0.05, position = position_nudge(x = 0.2)) +
+  labs(
+    title = "Avg 'No' Reward Scores by Time Point & Wave", 
+    y = "Score", 
+    x = "Time Point", 
+    fill = "COVID Wave",  # Legend title for fill
+    color = "COVID Wave"  # Legend title for color
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "right",
+    legend.title = element_text(face = "bold"), # Make legend title bold
+    axis.text.x = element_text(angle = 45, hjust = 1)  # Rotate x-axis labels by 45 degrees
+  ) +
+  ylim(-5, 105)
+
+# Count unique subjects in each category of 'covid_group'
+covid_wave_counts <- covid_long_final %>%
+  distinct(record_id, covid_group) %>%
+  count(covid_group)
+
+# Generate bar plot showing number of subjects in each wave
+ggplot(covid_wave_counts, aes(x = covid_group, y = n, fill = covid_group)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = n), vjust = -0.3, size = 3.5) +  # Add labels above bars
+  labs(title = "Count of Subjects per COVID Wave",
+       x = "COVID Wave",
+       y = "Number of Subjects") +
+  theme_minimal() +
+  theme(legend.position = "none")  # Remove legend if not needed
+
+# Extract month-year and count distinct subjects
+monthly_baseline <- covid_long_final %>%
+  distinct(record_id, baseline_date_complete) %>%
+  mutate(month_year = format(baseline_date_complete, "%Y-%m")) %>%
+  filter(baseline_date_complete >= as.Date("2020-05-01") & baseline_date_complete <= as.Date("2021-02-28")) %>%
+  count(month_year)
+
+# Plot the number of subjects completing baseline in each month-year
+ggplot(monthly_baseline, aes(x = month_year, y = n, fill = month_year)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = n), vjust = -0.5, size = 3.5) +  # Adding count labels above the bars
+  labs(title = "Monthly Count of Subjects Completing Baseline Session",
+       x = "Month-Year",
+       y = "Number of Subjects") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),  # Rotate x-axis labels for better readability
+        legend.position = "none")  # Remove the legend
+
+```
+
+```{r Descriptive Visualizations for Mental Health Data, message=FALSE, warning=FALSE}
+# Loop over each unique variable in the 'variable' column
+for (variable in unique(mentalhealth_survey_data_long$variable)) {
+  # Filter the data for the current variable
+  data_filtered <- mentalhealth_survey_data_long %>% 
+    filter(variable == !!variable)
+
+  # Assuming you have summary data for each variable stored in a way that can be accessed like this:
+  summary_data <- get(paste0("filtered_", variable, "_summary"))
+
+  # Ensure time_factor is ordered correctly
+  summary_data$time_factor <- factor(summary_data$time_factor, levels = c(
+    "Baseline", "Two Week Follow-Up", "One Month Follow-Up", 
+    "Six Week Follow-Up", "Two Month Follow-Up", "Ten Week Follow-Up", 
+    "Three Month Follow-Up"
+  ))
+  
+  # Create the plot
+  p <- ggplot(data_filtered, aes(x = time_factor, y = value, fill = time_factor, color = time_factor)) +
+    geom_flat_violin(aes(fill = time_factor), adjust = 1.5, trim = FALSE, alpha = 0.5, position = position_nudge(x = 0.2, y = 0), colour = NA) +
+    geom_point(aes(fill = time_factor, color = time_factor), position = position_jitter(width = .05), size = .5, shape = 20) +
+    geom_boxplot(aes(fill = time_factor, colour = time_factor), outlier.shape = NA, alpha = 0.5, width = 0.15, position = position_nudge(x = -0.2, y = 0), colour = "black") +
+    geom_point(data = summary_data, aes(x = factor(time_factor), y = score_mean, fill = time_factor, color = time_factor), shape = 18, position = position_nudge(x = 0.2)) +
+    geom_errorbar(data = summary_data, aes(x = factor(time_factor), y = score_mean, ymin = score_mean - sem, ymax = score_mean + sem, fill = time_factor, colour = time_factor), width = 0.05, position = position_nudge(x = 0.2)) +
+    geom_line(data = summary_data, aes(x = factor(time_factor), y = score_mean), group = 1, colour = "black", size = 0.5, linetype = "dashed", position = position_nudge(x = 0.2)) +  # modified line
+    labs(
+      title = paste(variable, "Scores by Time Point"), 
+      y = "Score", 
+      x = "Time Point", 
+      fill = "Time Point",  # Legend title for fill
+      color = "Time Point"  # Legend title for color
+    ) +
+    theme_minimal() +
+    theme(
+      legend.position = "right",
+      legend.title = element_text(face = "bold"), # Make legend title bold
+      axis.text.x = element_text(angle = 45, hjust = 1)  # Rotate x-axis labels by 45 degrees
+    )
+
+  # Print the plot
+  print(p)
+}
+
+```
+
+## Behavioral Computations: Multilevel Modeling & Visualizations
+
+Random intercept models are established to analyze various behavioral, risk, and reward metrics. Results are displayed in formatted tables that highlight both fixed and random effects across different behavior sums and averages.
+
+```{r Random Intercept Models, message=FALSE, warning=FALSE}
+# Rename 'record_id' to 'id' in the dataframe 'covid_long_final'
+covid_long_final <- covid_long_final %>%
+  dplyr::rename(id = record_id)
+
+# Random intercept models
+model_random_intercept_num_beh_Y_sum <- lmer(yes_counts ~ time + (1|id), data = covid_long_final)
+model_random_intercept_num_beh_N_sum <- lmer(no_counts ~ time + (1|id), data = covid_long_final)
+model_random_intercept_avg_risk_Y <- lmer(avg_risk_Y ~ time + (1|id), data = covid_long_final)
+model_random_intercept_avg_risk_N <- lmer(avg_risk_N ~ time + (1|id), data = covid_long_final)
+model_random_intercept_avg_rew_Y <- lmer(avg_rew_Y ~ time + (1|id), data = covid_long_final)
+model_random_intercept_avg_rew_N <- lmer(avg_rew_N ~ time + (1|id), data = covid_long_final)
+
+model_random_intercept_avg_low_risk_Y <- lmer(avg_low_risk_Y ~ time + (1|id), data = covid_long_final)
+model_random_intercept_avg_low_risk_N <- lmer(avg_low_risk_N ~ time + (1|id), data = covid_long_final)
+model_random_intercept_avg_low_rew_Y <- lmer(avg_low_rew_Y ~ time + (1|id), data = covid_long_final)
+model_random_intercept_avg_low_rew_N <- lmer(avg_low_rew_N ~ time + (1|id), data = covid_long_final)
+
+model_random_intercept_avg_moderate_risk_Y <- lmer(avg_moderate_risk_Y ~ time + (1|id), data = covid_long_final)
+model_random_intercept_avg_moderate_risk_N <- lmer(avg_moderate_risk_N ~ time + (1|id), data = covid_long_final)
+model_random_intercept_avg_moderate_rew_Y <- lmer(avg_moderate_rew_Y ~ time + (1|id), data = covid_long_final)
+model_random_intercept_avg_moderate_rew_N <- lmer(avg_moderate_rew_N ~ time + (1|id), data = covid_long_final)
+
+model_random_intercept_avg_high_risk_Y <- lmer(avg_high_risk_Y ~ time + (1|id), data = covid_long_final)
+model_random_intercept_avg_high_risk_N <- lmer(avg_high_risk_N ~ time + (1|id), data = covid_long_final)
+model_random_intercept_avg_high_rew_Y <- lmer(avg_high_rew_Y ~ time + (1|id), data = covid_long_final)
+model_random_intercept_avg_high_rew_N <- lmer(avg_high_rew_N ~ time + (1|id), data = covid_long_final)
+
+# Creating a grouped table with formatted layout including all models
+tab_model(
+  title = "Random Intercept Model Results - Risk/Reward Behavior Sums & Averages",
+  model_random_intercept_num_beh_Y_sum,
+  model_random_intercept_num_beh_N_sum,
+  model_random_intercept_avg_risk_Y,
+  model_random_intercept_avg_risk_N,
+  model_random_intercept_avg_rew_Y,
+  model_random_intercept_avg_rew_N,
+  model_random_intercept_avg_low_risk_Y,
+  model_random_intercept_avg_low_risk_N,
+  model_random_intercept_avg_low_rew_Y,
+  model_random_intercept_avg_low_rew_N,
+  model_random_intercept_avg_moderate_risk_Y,
+  model_random_intercept_avg_moderate_risk_N,
+  model_random_intercept_avg_moderate_rew_Y,
+  model_random_intercept_avg_moderate_rew_N,
+  model_random_intercept_avg_high_risk_Y,
+  model_random_intercept_avg_high_risk_N,
+  model_random_intercept_avg_high_rew_Y,
+  model_random_intercept_avg_high_rew_N
+)
+
+```
+
+Linear and quadratic growth models are fitted to explore longitudinal trajectories and capture curvature in time trends of the dataset, incorporating both fixed effects of time and random effects of individual trajectories. The outcomes of these models are presented in structured tables.
+
+```{r Linear Growth Model Fitting, message=FALSE, warning=FALSE}
+# Fit linear growth model with random intercepts and slopes and homoscedastic level-1 residuals
+model_random_slope_num_beh_Y_sum <- lmer(yes_counts ~ time + (1 + time|id), data = covid_long_final, REML = FALSE, control=lmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
+model_random_slope_num_beh_N_sum <- lmer(no_counts ~ time + (1 + time|id), data = covid_long_final, REML = FALSE, control=lmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
+model_random_slope_avg_risk_Y <- lmer(avg_risk_Y ~ time + (1 + time|id), data = covid_long_final, REML = FALSE, control = lmerControl(optimizer="bobyqa", optCtrl = list(maxfun = 2e5)))
+model_random_slope_avg_risk_N <- lmer(avg_risk_N ~ time + (1 + time|id), data = covid_long_final, REML = FALSE, control = lmerControl(optimizer="bobyqa", optCtrl = list(maxfun = 2e5)))
+model_random_slope_avg_rew_Y <- lmer(avg_rew_Y ~ time + (1 + time|id), data = covid_long_final, REML = FALSE, control = lmerControl(optimizer="bobyqa", optCtrl = list(maxfun = 2e5)))
+model_random_slope_avg_rew_N <- lmer(avg_rew_N ~ time + (1 + time|id), data = covid_long_final, REML = FALSE, control = lmerControl(optimizer="bobyqa", optCtrl = list(maxfun = 2e5)))
+
+model_random_slope_avg_low_risk_Y <- lmer(avg_low_risk_Y ~ time + (1 + time|id), data = covid_long_final, REML = FALSE, control = lmerControl(optimizer="bobyqa", optCtrl = list(maxfun = 2e5)))
+model_random_slope_avg_low_risk_N <- lmer(avg_low_risk_N ~ time + (1 + time|id), data = covid_long_final, REML = FALSE, control = lmerControl(optimizer="bobyqa", optCtrl = list(maxfun = 2e5)))
+model_random_slope_avg_low_rew_Y <- lmer(avg_low_rew_Y ~ time + (1 + time|id), data = covid_long_final, REML = FALSE, control = lmerControl(optimizer="bobyqa", optCtrl = list(maxfun = 2e5)))
+model_random_slope_avg_low_rew_N <- lmer(avg_low_rew_N ~ time + (1 + time|id), data = covid_long_final, REML = FALSE, control = lmerControl(optimizer="bobyqa", optCtrl = list(maxfun = 2e5)))
+
+model_random_slope_avg_moderate_risk_Y <- lmer(avg_moderate_risk_Y ~ time + (1 + time|id), data = covid_long_final, REML = FALSE, control = lmerControl(optimizer="bobyqa", optCtrl = list(maxfun = 2e5)))
+model_random_slope_avg_moderate_risk_N <- lmer(avg_moderate_risk_N ~ time + (1 + time|id), data = covid_long_final, REML = FALSE, control = lmerControl(optimizer="bobyqa", optCtrl = list(maxfun = 2e5)))
+model_random_slope_avg_moderate_rew_Y <- lmer(avg_moderate_rew_Y ~ time + (1 + time|id), data = covid_long_final, REML = FALSE, control = lmerControl(optimizer="bobyqa", optCtrl = list(maxfun = 2e5)))
+model_random_slope_avg_moderate_rew_N <- lmer(avg_moderate_rew_N ~ time + (1 + time|id), data = covid_long_final, REML = FALSE, control = lmerControl(optimizer="bobyqa", optCtrl = list(maxfun = 2e5)))
+
+model_random_slope_avg_high_risk_Y <- lmer(avg_high_risk_Y ~ time + (1 + time|id), data = covid_long_final, REML = FALSE, control = lmerControl(optimizer="bobyqa", optCtrl = list(maxfun = 2e5)))
+model_random_slope_avg_high_risk_N <- lmer(avg_high_risk_N ~ time + (1 + time|id), data = covid_long_final, REML = FALSE, control = lmerControl(optimizer="bobyqa", optCtrl = list(maxfun = 2e5)))
+model_random_slope_avg_high_rew_Y <- lmer(avg_high_rew_Y ~ time + (1 + time|id), data = covid_long_final, REML = FALSE, control = lmerControl(optimizer="bobyqa", optCtrl = list(maxfun = 2e5)))
+model_random_slope_avg_high_rew_N <- lmer(avg_high_rew_N ~ time + (1 + time|id), data = covid_long_final, REML = FALSE, control = lmerControl(optimizer="bobyqa", optCtrl = list(maxfun = 2e5)))
+
+# Creating a grouped table with formatted layout including all models
+tab_model(
+  title = "Random Linear Growth Model Results - Risk/Reward Behavior Sums & Averages",
+  model_random_slope_num_beh_Y_sum,
+  model_random_slope_num_beh_N_sum,
+  model_random_slope_avg_risk_Y,
+  model_random_slope_avg_risk_N,
+  model_random_slope_avg_rew_Y,
+  model_random_slope_avg_rew_N,
+  model_random_slope_avg_low_risk_Y,
+  model_random_slope_avg_low_risk_N,
+  model_random_slope_avg_low_rew_Y,
+  model_random_slope_avg_low_rew_N,
+  model_random_slope_avg_moderate_risk_Y,
+  model_random_slope_avg_moderate_risk_N,
+  model_random_slope_avg_moderate_rew_Y,
+  model_random_slope_avg_moderate_rew_N,
+  model_random_slope_avg_high_risk_Y,
+  model_random_slope_avg_high_risk_N,
+  model_random_slope_avg_high_rew_Y,
+  model_random_slope_avg_high_rew_N
+)
+
+```
+
+```{r Quadratic Growth Model Fitting, message=FALSE, warning=FALSE}
+# Quadratic model with random intercept and random slope
+model_quad_num_beh_Y_sum <- lmer(yes_counts ~ time + I(time^2) + (1 + time + I(time^2)|id), data = covid_long_final, REML = FALSE, control = lmerControl(optimizer = "bobyqa", optCtrl = list(maxfun= 2e5)))
+model_quad_num_beh_N_sum <- lmer(no_counts ~ time + I(time^2) + (1 + time + I(time^2)|id), data = covid_long_final, REML = FALSE, control = lmerControl(optimizer = "bobyqa", optCtrl = list(maxfun= 2e5)))
+model_quad_avg_risk_Y <- lmer(avg_risk_Y ~ time + I(time^2) + (1 + time + I(time^2)|id), data = covid_long_final, REML = FALSE, control = lmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 2e5)))
+model_quad_avg_risk_N <- lmer(avg_risk_N ~ time + I(time^2) + (1 + time + I(time^2)|id), data = covid_long_final, REML = FALSE, control = lmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 2e5)))
+model_quad_avg_rew_Y <- lmer(avg_rew_Y ~ time + I(time^2) + (1 + time + I(time^2)|id), data = covid_long_final, REML = FALSE, control = lmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 2e5)))
+model_quad_avg_rew_N <- lmer(avg_rew_N ~ time + I(time^2) + (1 + time + I(time^2)|id), data = covid_long_final, REML = FALSE, control = lmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 2e5)))
+
+model_quad_avg_low_risk_Y <- lmer(avg_low_risk_Y ~ time + I(time^2) + (1 + time + I(time^2)|id), data = covid_long_final, REML = FALSE, control = lmerControl(optimizer="bobyqa", optCtrl = list(maxfun = 2e5)))
+model_quad_avg_low_risk_N <- lmer(avg_low_risk_N ~ time + I(time^2) + (1 + time + I(time^2)|id), data = covid_long_final, REML = FALSE, control = lmerControl(optimizer="bobyqa", optCtrl = list(maxfun = 2e5)))
+model_quad_avg_low_rew_Y <- lmer(avg_low_rew_Y ~ time + I(time^2) + (1 + time + I(time^2)|id), data = covid_long_final, REML = FALSE, control = lmerControl(optimizer="bobyqa", optCtrl = list(maxfun = 2e5)))
+model_quad_avg_low_rew_N <- lmer(avg_low_rew_N ~ time + I(time^2) + (1 + time + I(time^2)|id), data = covid_long_final, REML = FALSE, control = lmerControl(optimizer="bobyqa", optCtrl = list(maxfun = 2e5)))
+
+model_quad_avg_moderate_risk_Y <- lmer(avg_moderate_risk_Y ~ time + I(time^2) + (1 + time + I(time^2)|id), data = covid_long_final, REML = FALSE, control = lmerControl(optimizer="bobyqa", optCtrl = list(maxfun = 2e5)))
+model_quad_avg_moderate_risk_N <- lmer(avg_moderate_risk_N ~ time + I(time^2) + (1 + time + I(time^2)|id), data = covid_long_final, REML = FALSE, control = lmerControl(optimizer="bobyqa", optCtrl = list(maxfun = 2e5)))
+model_quad_avg_moderate_rew_Y <- lmer(avg_moderate_rew_Y ~ time + I(time^2) + (1 + time + I(time^2)|id), data = covid_long_final, REML = FALSE, control = lmerControl(optimizer="bobyqa", optCtrl = list(maxfun = 2e5)))
+model_quad_avg_moderate_rew_N <- lmer(avg_moderate_rew_N ~ time + I(time^2) + (1 + time + I(time^2)|id), data = covid_long_final, REML = FALSE, control = lmerControl(optimizer="bobyqa", optCtrl = list(maxfun = 2e5)))
+
+model_quad_avg_high_risk_Y <- lmer(avg_high_risk_Y ~ time + I(time^2) + (1 + time + I(time^2)|id), data = covid_long_final, REML = FALSE, control = lmerControl(optimizer="bobyqa", optCtrl = list(maxfun = 2e5)))
+model_quad_avg_high_risk_N <- lmer(avg_high_risk_N ~ time + I(time^2) + (1 + time + I(time^2)|id), data = covid_long_final, REML = FALSE, control = lmerControl(optimizer="bobyqa", optCtrl = list(maxfun = 2e5)))
+model_quad_avg_high_rew_Y <- lmer(avg_high_rew_Y ~ time + I(time^2) + (1 + time + I(time^2)|id), data = covid_long_final, REML = FALSE, control = lmerControl(optimizer="bobyqa", optCtrl = list(maxfun = 2e5)))
+model_quad_avg_high_rew_N <- lmer(avg_high_rew_N ~ time + I(time^2) + (1 + time + I(time^2)|id), data = covid_long_final, REML = FALSE, control = lmerControl(optimizer="bobyqa", optCtrl = list(maxfun = 2e5)))
+
+# Creating a grouped table with formatted layout including all models
+tab_model(
+  title = "Random Quadratic Growth Model Results - Risk/Reward Behavior Sums & Averages",
+  model_quad_num_beh_Y_sum,
+  model_quad_num_beh_N_sum,
+  model_quad_avg_risk_Y,
+  model_quad_avg_risk_N,
+  model_quad_avg_rew_Y,
+  model_quad_avg_rew_N,
+  model_quad_avg_low_risk_Y,
+  model_quad_avg_low_risk_N,
+  model_quad_avg_low_rew_Y,
+  model_quad_avg_low_rew_N,
+  model_quad_avg_moderate_risk_Y,
+  model_quad_avg_moderate_risk_N,
+  model_quad_avg_moderate_rew_Y,
+  model_quad_avg_moderate_rew_N,
+  model_quad_avg_high_risk_Y,
+  model_quad_avg_high_risk_N,
+  model_quad_avg_high_rew_Y,
+  model_quad_avg_high_rew_N
+)
+
+```
+
+Finally, visualizations of the predicted trajectories from these models are generated, using polynomial regression lines to depict dynamic changes and individual variability over time.
+
+```{r Model Visualizations, message=FALSE, warning=FALSE}
+# Plot model implied trajectories, quadratic
+ggplot(covid_long_final,aes(time,predict(model_quad_num_beh_Y_sum))) +
+  ylim(0, 40) +
+  geom_smooth(aes(group=id),method='lm',formula=y~x+I(x^2),se=FALSE,
+              color="black",size=.1) +
+  labs(x = "Time Point") +
+  labs(y = "Predicted Sum Number of 'Yes' Behaviors")
+
+ggplot(covid_long_final,aes(time,predict(model_quad_num_beh_N_sum))) +
+  ylim(0, 40) +
+  geom_smooth(aes(group=id),method='lm',formula=y~x+I(x^2),se=FALSE,
+              color="black",size=.1) +
+  labs(x = "Time Point") +
+  labs(y = "Predicted Sum Number of 'No' Behaviors")
+
+# Plot model implied trajectories, linear
+ggplot(covid_long_final, aes(x = time, y = predict(model_random_slope_num_beh_Y_sum))) +
+  geom_smooth(aes(group = id), method = 'lm', formula = y ~ x, se = FALSE, color = "black", size = .1) +
+  labs(x = "Time Point", y = "Predicted Sum Number of 'Yes' Behaviors") +
+  ylim(0, 40)
+
+ggplot(covid_long_final, aes(x = time, y = predict(model_random_slope_num_beh_N_sum))) +
+  geom_smooth(aes(group = id), method = 'lm', formula = y ~ x, se = FALSE, color = "black", size = .1) +
+  labs(x = "Time Point", y = "Predicted Sum Number of 'No' Behaviors") +
+  ylim(0, 40)
+
+### Imputation code--needed as the predicted values has fewer rows than the original data frame
+# Calculate predictions for each model
+quad_predicted_avg_risk_Y <- predict(model_quad_avg_risk_Y, re.form = NA)
+quad_predicted_avg_risk_N <- predict(model_quad_avg_risk_N, re.form = NA)
+quad_predicted_avg_rew_Y <- predict(model_quad_avg_rew_Y, re.form = NA)
+quad_predicted_avg_rew_N <- predict(model_quad_avg_rew_N, re.form = NA)
+lin_predicted_avg_risk_Y <- predict(model_random_slope_avg_risk_Y, re.form = NA)
+lin_predicted_avg_risk_N <- predict(model_random_slope_avg_risk_N, re.form = NA)
+lin_predicted_avg_rew_Y <- predict(model_random_slope_avg_rew_Y, re.form = NA)
+lin_predicted_avg_rew_N <- predict(model_random_slope_avg_rew_N, re.form = NA)
+
+# Add predicted values to the dataframe, initializing with NA
+covid_long_final$quad_predicted_avg_risk_Y <- NA
+covid_long_final$quad_predicted_avg_risk_N <- NA
+covid_long_final$quad_predicted_avg_rew_Y <- NA
+covid_long_final$quad_predicted_avg_rew_N <- NA
+covid_long_final$lin_predicted_avg_risk_Y <- NA
+covid_long_final$lin_predicted_avg_risk_N <- NA
+covid_long_final$lin_predicted_avg_rew_Y <- NA
+covid_long_final$lin_predicted_avg_rew_N <- NA
+
+# Fill in the predicted values where available
+covid_long_final$quad_predicted_avg_risk_Y[!is.na(quad_predicted_avg_risk_Y)] <- quad_predicted_avg_risk_Y
+covid_long_final$quad_predicted_avg_risk_N[!is.na(quad_predicted_avg_risk_N)] <- quad_predicted_avg_risk_N
+covid_long_final$quad_predicted_avg_rew_Y[!is.na(quad_predicted_avg_rew_Y)] <- quad_predicted_avg_rew_Y
+covid_long_final$quad_predicted_avg_rew_N[!is.na(quad_predicted_avg_rew_N)] <- quad_predicted_avg_rew_N
+covid_long_final$lin_predicted_avg_risk_Y[!is.na(lin_predicted_avg_risk_Y)] <- lin_predicted_avg_risk_Y
+covid_long_final$lin_predicted_avg_risk_N[!is.na(lin_predicted_avg_risk_N)] <- lin_predicted_avg_risk_N
+covid_long_final$lin_predicted_avg_rew_Y[!is.na(lin_predicted_avg_rew_Y)] <- lin_predicted_avg_rew_Y
+covid_long_final$lin_predicted_avg_rew_N[!is.na(lin_predicted_avg_rew_N)] <- lin_predicted_avg_rew_N
+
+# Handle NA predicted values by assigning the mean of the available predictions
+quad_mean_predicted_risk_Y <- mean(quad_predicted_avg_risk_Y, na.rm = TRUE)
+quad_mean_predicted_risk_N <- mean(quad_predicted_avg_risk_N, na.rm = TRUE)
+quad_mean_predicted_rew_Y <- mean(quad_predicted_avg_rew_Y, na.rm = TRUE)
+quad_mean_predicted_rew_N <- mean(quad_predicted_avg_rew_N, na.rm = TRUE)
+lin_mean_predicted_risk_Y <- mean(lin_predicted_avg_risk_Y, na.rm = TRUE)
+lin_mean_predicted_risk_N <- mean(lin_predicted_avg_risk_N, na.rm = TRUE)
+lin_mean_predicted_rew_Y <- mean(lin_predicted_avg_rew_Y, na.rm = TRUE)
+lin_mean_predicted_rew_N <- mean(lin_predicted_avg_rew_N, na.rm = TRUE)
+
+covid_long_final$quad_predicted_avg_risk_Y[is.na(covid_long_final$quad_predicted_avg_risk_Y)] <- quad_mean_predicted_risk_Y
+covid_long_final$quad_predicted_avg_risk_N[is.na(covid_long_final$quad_predicted_avg_risk_N)] <- quad_mean_predicted_risk_N
+covid_long_final$quad_predicted_avg_rew_Y[is.na(covid_long_final$quad_predicted_avg_rew_Y)] <- quad_mean_predicted_rew_Y
+covid_long_final$quad_predicted_avg_rew_N[is.na(covid_long_final$quad_predicted_avg_rew_N)] <- quad_mean_predicted_rew_N
+covid_long_final$lin_predicted_avg_risk_Y[is.na(covid_long_final$lin_predicted_avg_risk_Y)] <- lin_mean_predicted_risk_Y
+covid_long_final$lin_predicted_avg_risk_N[is.na(covid_long_final$lin_predicted_avg_risk_N)] <- lin_mean_predicted_risk_N
+covid_long_final$lin_predicted_avg_rew_Y[is.na(covid_long_final$lin_predicted_avg_rew_Y)] <- lin_mean_predicted_rew_Y
+covid_long_final$lin_predicted_avg_rew_N[is.na(covid_long_final$lin_predicted_avg_rew_N)] <- lin_mean_predicted_rew_N
+
+# Plotting all four graphs, quadratic
+q1 <- ggplot(covid_long_final, aes(x = time, y = quad_predicted_avg_risk_Y)) +
+  geom_smooth(aes(group = id), method = 'lm', formula = y ~ x + I(x^2), se = FALSE, color = "black", size = .1) +
+  labs(x = "Time Point", y = "Predicted Average 'Yes' Risk Score")
+
+q2 <- ggplot(covid_long_final, aes(x = time, y = quad_predicted_avg_risk_N)) +
+  geom_smooth(aes(group = id), method = 'lm', formula = y ~ x + I(x^2), se = FALSE, color = "black", size = .1) +
+  labs(x = "Time Point", y = "Predicted Average 'No' Risk Score")
+
+q3 <- ggplot(covid_long_final, aes(x = time, y = quad_predicted_avg_rew_Y)) +
+  geom_smooth(aes(group = id), method = 'lm', formula = y ~ x + I(x^2), se = FALSE, color = "black", size = .1) +
+  labs(x = "Time Point", y = "Predicted Average 'Yes' Reward Score")
+
+q4 <- ggplot(covid_long_final, aes(x = time, y = quad_predicted_avg_rew_N)) +
+  geom_smooth(aes(group = id), method = 'lm', formula = y ~ x + I(x^2), se = FALSE, color = "black", size = .1) +
+  labs(x = "Time Point", y = "Predicted Average 'No' Reward Score")
+
+# Combine and display the plots
+grid.arrange(q1, q2, ncol = 2)
+grid.arrange(q3, q4, ncol = 2)
+
+# Plotting all four graphs, linear
+l1 <- ggplot(covid_long_final, aes(x = time, y = lin_predicted_avg_risk_Y)) +
+  geom_smooth(aes(group = id), method = 'lm', formula = y ~ x, se = FALSE, color = "black", size = .1) +
+  labs(x = "Time Point", y = "Predicted Average 'Yes' Risk Score")
+
+l2 <- ggplot(covid_long_final, aes(x = time, y = lin_predicted_avg_risk_N)) +
+  geom_smooth(aes(group = id), method = 'lm', formula = y ~ x, se = FALSE, color = "black", size = .1) +
+  labs(x = "Time Point", y = "Predicted Average 'No' Risk Score")
+
+l3 <- ggplot(covid_long_final, aes(x = time, y = lin_predicted_avg_rew_Y)) +
+  geom_smooth(aes(group = id), method = 'lm', formula = y ~ x, se = FALSE, color = "black", size = .1) +
+  labs(x = "Time Point", y = "Predicted Average 'Yes' Reward Score")
+
+l4 <- ggplot(covid_long_final, aes(x = time, y = lin_predicted_avg_rew_N)) +
+  geom_smooth(aes(group = id), method = 'lm', formula = y ~ x, se = FALSE, color = "black", size = .1) +
+  labs(x = "Time Point", y = "Predicted Average 'No' Reward Score")
+
+# Combine and display the plots
+grid.arrange(l1, l2, ncol = 2)
+grid.arrange(l3, l4, ncol = 2)
+
+```
+
+## Session Information
+
+To enhance **reproducibility**, details about the **working environment** used for these analyses can be found below.
+
+```{r}
+sessionInfo()
+```
