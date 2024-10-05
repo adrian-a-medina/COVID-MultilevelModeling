@@ -3,11 +3,11 @@ title: "Longitudinal COVID Risk/Reward Behaviors & Mental Health Modeling"
 subtitle: "This project aims to examine longitudinal changes in risk- and reward-related behaviors and decision-making among a general community sample over the first year following the initial COVID-19 lock-down in the United States, which began in March 2020. The focus is to understand how these behaviors evolved during the pandemic and to identify the factors influencing these trajectories. This study was conducted by the <a href='https://www.mcleanhospital.org/profile/poornima-kumar'>Computational Psychopathology Laboratory</a> at McLean Hospital & Harvard Medical School."
 format:
   lumo-html: 
-    logo: "Lab Logo_Transparent.svg" # Optional. Path to a logo displayed above the title
+    logo: "COMP Logo.png" 
     github-repo: "https://www.github.com/adrian-a-medina/COVID-MultilevelModeling"
     primary-color: "#d62993"
     self-contained: true
-    is-particlejs-enabled: true # Optional: display interactive particles in the document header
+    is-particlejs-enabled: true 
 author: Adrian Medina
 date: last-modified
 ---
@@ -52,13 +52,24 @@ if (!require(pacman)) install.packages("pacman")
 library(pacman) # <1>
 
 # Use p_load function to install (if necessary) and load packages
-p_load(psych, ggplot2, lme4, lmerTest, nlme, dplyr, performance, interactions, sampling, tidyr,
+p_load(psych, ggplot2, lme4, Matrix, lmerTest, nlme, dplyr, performance, interactions, sampling, tidyr,
        tidyverse, kableExtra, broom.mixed, gridExtra, sjPlot, ggridges, PupillometryR, 
        patchwork)
 
 # Define base path for streamlined access/replication
-base_path <- "~/Dropbox (Partners HealthCare)/Stress_COVID_Decision_making/Analyses/Risk_Behavior/MultilevelModeling"
-survey_path <- "~/Dropbox (Partners HealthCare)/Stress_COVID_Decision_making/Data/scored_survey_data/final_data"
+base_path <- "~/GitHub/COVID-MultilevelModeling/data_files"
+
+# Set working directory
+setwd(base_path)
+
+# Unzip the file in the local directory
+unzip("covid_long.csv.zip")
+
+# Read in risk/reward dataset, presently in long format
+covid_long <- read.csv("covid_long.csv")
+
+# Read in longitudinal mental health questionnaire data, presently in wide format
+mentalhealth_survey_data <- read.csv("FINAL_SURVEY_DATA_2024-06-12 .csv")
 
 ```
 
@@ -66,13 +77,7 @@ survey_path <- "~/Dropbox (Partners HealthCare)/Stress_COVID_Decision_making/Dat
 
 The source dataset is loaded and time values are adjusted from 1-7 to 0-6. Initialize unified columns for behavior, risk, and reward variables.
 
-```{r Loading Source Dataset & Data Frame Preparation, message=FALSE, warning=FALSE}
-# Set working directory
-setwd(base_path)
-
-# Read in source dataset
-covid_long <- read.csv("covid_long.csv")
-
+```{r Risk-Reward Data Frame Preparation, message=FALSE, warning=FALSE}
 # Recode time from values of 1-7 to 0-6
 covid_long$time <- covid_long$Index1 - 1
 
@@ -518,11 +523,6 @@ Converts mental health survey data from wide to long format for analytical flexi
 **Please note**: the mental health data requires a slightly different approach, and thus, comes with its own unique transformations as a result of each variable having different frequencies of occurrence in the data collection sequence.
 
 ```{r Mental Health Scores Data Preparation, message=FALSE, warning=FALSE}
-setwd(survey_path)
-
-# Read in longitudinal mental health questionnaire data, presently in wide format
-mentalhealth_survey_data <- read.csv("FINAL_SURVEY_DATA_2024-06-12.csv")
-
 # Extract the column names
 column_names <- names(mentalhealth_survey_data)
 
@@ -658,9 +658,6 @@ keep_panas_times <- "Baseline"
 # Filter and keep specific time points for PANAS variables
 mentalhealth_survey_data_long <- mentalhealth_survey_data_long %>%
   filter(!(variable %in% panas_vars) | (variable %in% panas_vars & time_factor == keep_panas_times))
-
-# Print the updated data frame to verify that variables were properly transformed
-print(mentalhealth_survey_data_long)
 
 ```
 
@@ -1337,6 +1334,9 @@ Random intercept models are established to analyze various behavioral, risk, and
 covid_long_final <- covid_long_final %>%
   dplyr::rename(id = record_id)
 
+install.packages("Matrix")
+library(Matrix)
+
 # Random intercept models
 model_random_intercept_num_beh_Y_sum <- lmer(yes_counts ~ time + (1|id), data = covid_long_final)
 model_random_intercept_num_beh_N_sum <- lmer(no_counts ~ time + (1|id), data = covid_long_final)
@@ -1446,18 +1446,18 @@ model_quad_avg_rew_Y <- lmer(avg_rew_Y ~ time + I(time^2) + (1 + time + I(time^2
 model_quad_avg_rew_N <- lmer(avg_rew_N ~ time + I(time^2) + (1 + time + I(time^2)|id), data = covid_long_final, REML = FALSE, control = lmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 2e5)))
 
 model_quad_avg_low_risk_Y <- lmer(avg_low_risk_Y ~ time + I(time^2) + (1 + time + I(time^2)|id), data = covid_long_final, REML = FALSE, control = lmerControl(optimizer="bobyqa", optCtrl = list(maxfun = 2e5)))
-model_quad_avg_low_risk_N <- lmer(avg_low_risk_N ~ time + I(time^2) + (1 + time + I(time^2)|id), data = covid_long_final, REML = FALSE, control = lmerControl(optimizer="bobyqa", optCtrl = list(maxfun = 2e5)))
+#model_quad_avg_low_risk_N <- lmer(avg_low_risk_N ~ time + I(time^2) + (1 + time + I(time^2)|id), data = covid_long_final, REML = FALSE, control = lmerControl(optimizer="bobyqa", optCtrl = list(maxfun = 2e5)))
 model_quad_avg_low_rew_Y <- lmer(avg_low_rew_Y ~ time + I(time^2) + (1 + time + I(time^2)|id), data = covid_long_final, REML = FALSE, control = lmerControl(optimizer="bobyqa", optCtrl = list(maxfun = 2e5)))
-model_quad_avg_low_rew_N <- lmer(avg_low_rew_N ~ time + I(time^2) + (1 + time + I(time^2)|id), data = covid_long_final, REML = FALSE, control = lmerControl(optimizer="bobyqa", optCtrl = list(maxfun = 2e5)))
+#model_quad_avg_low_rew_N <- lmer(avg_low_rew_N ~ time + I(time^2) + (1 + time + I(time^2)|id), data = covid_long_final, REML = FALSE, control = lmerControl(optimizer="bobyqa", optCtrl = list(maxfun = 2e5)))
 
 model_quad_avg_moderate_risk_Y <- lmer(avg_moderate_risk_Y ~ time + I(time^2) + (1 + time + I(time^2)|id), data = covid_long_final, REML = FALSE, control = lmerControl(optimizer="bobyqa", optCtrl = list(maxfun = 2e5)))
 model_quad_avg_moderate_risk_N <- lmer(avg_moderate_risk_N ~ time + I(time^2) + (1 + time + I(time^2)|id), data = covid_long_final, REML = FALSE, control = lmerControl(optimizer="bobyqa", optCtrl = list(maxfun = 2e5)))
 model_quad_avg_moderate_rew_Y <- lmer(avg_moderate_rew_Y ~ time + I(time^2) + (1 + time + I(time^2)|id), data = covid_long_final, REML = FALSE, control = lmerControl(optimizer="bobyqa", optCtrl = list(maxfun = 2e5)))
 model_quad_avg_moderate_rew_N <- lmer(avg_moderate_rew_N ~ time + I(time^2) + (1 + time + I(time^2)|id), data = covid_long_final, REML = FALSE, control = lmerControl(optimizer="bobyqa", optCtrl = list(maxfun = 2e5)))
 
-model_quad_avg_high_risk_Y <- lmer(avg_high_risk_Y ~ time + I(time^2) + (1 + time + I(time^2)|id), data = covid_long_final, REML = FALSE, control = lmerControl(optimizer="bobyqa", optCtrl = list(maxfun = 2e5)))
+#model_quad_avg_high_risk_Y <- lmer(avg_high_risk_Y ~ time + I(time^2) + (1 + time + I(time^2)|id), data = covid_long_final, REML = FALSE, control = lmerControl(optimizer="bobyqa", optCtrl = list(maxfun = 2e5)))
 model_quad_avg_high_risk_N <- lmer(avg_high_risk_N ~ time + I(time^2) + (1 + time + I(time^2)|id), data = covid_long_final, REML = FALSE, control = lmerControl(optimizer="bobyqa", optCtrl = list(maxfun = 2e5)))
-model_quad_avg_high_rew_Y <- lmer(avg_high_rew_Y ~ time + I(time^2) + (1 + time + I(time^2)|id), data = covid_long_final, REML = FALSE, control = lmerControl(optimizer="bobyqa", optCtrl = list(maxfun = 2e5)))
+#model_quad_avg_high_rew_Y <- lmer(avg_high_rew_Y ~ time + I(time^2) + (1 + time + I(time^2)|id), data = covid_long_final, REML = FALSE, control = lmerControl(optimizer="bobyqa", optCtrl = list(maxfun = 2e5)))
 model_quad_avg_high_rew_N <- lmer(avg_high_rew_N ~ time + I(time^2) + (1 + time + I(time^2)|id), data = covid_long_final, REML = FALSE, control = lmerControl(optimizer="bobyqa", optCtrl = list(maxfun = 2e5)))
 
 # Creating a grouped table with formatted layout including all models
@@ -1470,16 +1470,16 @@ tab_model(
   model_quad_avg_rew_Y,
   model_quad_avg_rew_N,
   model_quad_avg_low_risk_Y,
-  model_quad_avg_low_risk_N,
+  #model_quad_avg_low_risk_N,
   model_quad_avg_low_rew_Y,
-  model_quad_avg_low_rew_N,
+  #model_quad_avg_low_rew_N,
   model_quad_avg_moderate_risk_Y,
   model_quad_avg_moderate_risk_N,
   model_quad_avg_moderate_rew_Y,
   model_quad_avg_moderate_rew_N,
-  model_quad_avg_high_risk_Y,
+  #model_quad_avg_high_risk_Y,
   model_quad_avg_high_risk_N,
-  model_quad_avg_high_rew_Y,
+  #model_quad_avg_high_rew_Y,
   model_quad_avg_high_rew_N
 )
 
