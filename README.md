@@ -1,6 +1,8 @@
 # Longitudinal COVID Risk/Reward Behaviors & Mental Health Modeling
 This project aims to examine longitudinal changes in risk- and reward-related behaviors and decision-making among a general community sample over the first year following the initial COVID-19 lock-down in the United States, which began in March 2020. The focus is to understand how these behaviors evolved during the pandemic and to identify the factors influencing these trajectories. This study was conducted by the <a href='https://www.mcleanhospital.org/profile/poornima-kumar'>Computational Psychopathology Laboratory</a> at McLean Hospital & Harvard Medical School.
 
+To view the HTML page that is rendered from the Quarto markdown file, please go to the following [**page**](https://adrian-a-medina.github.io/COVID-MultilevelModeling/Longitudinal_Risk_and_Reward_Modeling.html).
+
 ## Study Design
 The study spans from May 2020 to February 2021, encompassing seven sessions including the baseline. Follow-up assessments were conducted at two weeks, one month, six weeks, two months, ten weeks, and three months post-baseline. This design allows for detailed tracking of changes over a crucial period of adjustment to pandemic-related disruptions.
 
