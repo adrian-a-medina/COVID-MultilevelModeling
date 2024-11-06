@@ -73,7 +73,7 @@ unzip("covid_long.csv.zip")
 covid_long <- read.csv("covid_long.csv")
 
 # Read in longitudinal mental health questionnaire data, presently in wide format
-mentalhealth_survey_data <- read.csv("FINAL_SURVEY_DATA_2024-06-12 .csv")
+mentalhealth_survey_data <- read.csv("FINAL_SURVEY_DATA_2024-06-12.csv")
 
 ```
 
