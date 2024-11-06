@@ -7,7 +7,11 @@ format:
     github-repo: "https://www.github.com/adrian-a-medina/COVID-MultilevelModeling"
     primary-color: "#d62993"
     self-contained: true
-    is-particlejs-enabled: true 
+    is-particlejs-enabled: true
+    code-summary: "Expand Code"
+include-in-header:
+  - text: |
+     <link rel = "shortcut icon" href = "COMP Logo.png" />
 author: Adrian Medina
 date: last-modified
 ---
