@@ -1616,6 +1616,16 @@ grid.arrange(l3, l4, ncol = 2)
 
 To enhance **reproducibility**, details about the **working environment** used for these analyses can be found below.
 
+<button type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne">
+
+Session Information </button>
+
+::: {#collapseOne .accordion-collapse .collapse}
+<div>
+
 ```{r}
 sessionInfo()
 ```
+
+</div>
+:::
